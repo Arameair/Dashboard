@@ -21,12 +21,12 @@ For each prototype, aim for these actions in `project.json`:
   - **Stop** force-closes the program (and its browser on Windows).
   - **Finish** presses Enter when the log shows the program is waiting ("Press Enter").
 
-Optional: Install engine, Sign in, Test run (sends nothing), and other args your program understands.
+Optional program-defined actions may include Install engine, Sign in, or Test run. Dashboard itself does not implement those operations: pressing an action launches the configured executable with its arguments. Installs, sign-ins, browser automation, external requests, and ChatGPT message sends must be explicitly owner-authorized before clicking the relevant action. Do not assume a program-defined action is offline or send-free without verifying that program.
 
 ## Rules that keep control
 
-- Everything stays local on `127.0.0.1`. Dashboard never binds to `0.0.0.0`.
-- Dashboard never commits, pushes, resets, or checks out git for you.
+- The Dashboard web server listens on local `127.0.0.1` by default; launched project programs may separately access external services, depending on their implementation.
+- The Dashboard web app does not perform git operations for you. Separate launcher scripts or program-defined actions may have their own behavior; review and explicitly authorize those before running them.
 - One window: start, watch the log, test, stop or finish. You always know which version is which because each has its own folder and sidebar entry.
 - Done looks like this: you can start, watch, test, and stop anything you are building from Dashboard, and you never wonder which version is the real one.
 
@@ -57,7 +57,7 @@ Self-updating means the *results* and *releases* you already approved show up he
 
 ## Gaps (what Dashboard does not do yet)
 
-These are real limits in `source/main.go` today — do not invent fields for them:
+These are real limits in `dashboard/main.go` today — do not invent fields for them:
 
 - **No scheduling.** There is no cron, interval, or "every N minutes" field in `project.json`. "Run every 10 min" works only because the *program* loops; Dashboard just starts that action once.
 - **No Stop/Finish actions in JSON.** Stop and Finish are UI controls on every running project.
