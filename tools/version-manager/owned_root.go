@@ -27,6 +27,6 @@ func requireOwnedBuild(root, candidate string) error {
  if rel=="." || rel==".." || filepath.IsAbs(rel) || strings.HasPrefix(rel,".."+string(filepath.Separator)){
   return errors.New("binary outside owned build root")
  }
- if err:=validExecutable(canonicalFile);err!=nil{return err}
+ // Once containment has been checked, validate file type without applying the\n // catalog registration blacklist: managed Alpha builds live in that directory.\n st,err:=os.Stat(canonicalFile);if err!=nil{return err}\n if !st.Mode().IsRegular(){return errors.New("managed executable must be a regular file")}\n if st.Mode()&0111==0 && strings.ToLower(filepath.Ext(canonicalFile))!=".exe" {return errors.New("managed build is not executable")}
  return nil
 }
