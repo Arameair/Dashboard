@@ -60,9 +60,12 @@ main { max-width: 1500px; margin: 0 auto; padding: 16px; }
 .where .t { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .where .u { font-family: var(--mono); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .err { font-size: 12.5px; color: var(--bad); }
-.shot { position: relative; aspect-ratio: 16 / 9; border-radius: 8px; border: 1px solid var(--line); background: var(--soft); overflow: hidden; cursor: pointer; }
-.shot img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: none; }
+.card.big { grid-column: 1 / -1; }
+.shot { position: relative; aspect-ratio: 16 / 9; border-radius: 8px; border: 1px solid var(--line); background: var(--soft); overflow: hidden; }
+.shot.has { aspect-ratio: auto; }
+.shot img { width: 100%; height: auto; display: none; cursor: default; user-select: none; outline: none; }
 .shot.has img { display: block; }
+.shot:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
 .shot .ph { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mute); font-size: 12.5px; text-align: center; padding: 10px; }
 .shot.has .ph { display: none; }
 .shot .act { position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,.65); color: #fff; font-size: 11.5px; padding: 2px 8px; border-radius: 6px; display: none; }
@@ -110,7 +113,7 @@ input[type=color] { width: 48px; height: 34px; padding: 2px; border: 1px solid v
     <button id="tile" title="Arrange the browser windows in a grid">Tile windows</button>
     <span class="sep"></span>
     <button id="logsAll" class="toggle" aria-pressed="false" title="Show or hide every log">Logs</button>
-    <button id="thumbs" class="toggle" aria-pressed="true" title="Live previews of each browser">Previews</button>
+    <button id="thumbs" class="toggle" aria-pressed="true" title="Show each browser live inside its card">Live view</button>
     <span class="sep"></span>
     <button id="addBtn">+ Project</button>
     <button id="setBtn" class="ghost" title="Settings">Settings</button>
@@ -207,6 +210,7 @@ const logs = {};              // id -> array of lines
 const cards = {};             // id -> {el, refs}
 const showLog = store.get("showLog", {});
 let thumbs = store.get("thumbs", true);
+const big = store.get("big", {});   // id -> card is expanded
 let dataDir = "";
 
 // ---------- server calls ----------
@@ -252,17 +256,19 @@ function makeCard(p) {
     <div class="stripe"></div>
     <div class="body">
       <div class="top"><span class="chip" data-r="chip"></span><span class="name" data-r="name"></span>
-        <button class="ghost" data-a="edit" title="Edit project">Edit</button><span class="pill" data-r="pill"></span></div>
+        <button class="ghost" data-a="edit" title="Edit project">Edit</button>
+        <button class="ghost danger" data-a="remove" title="Remove this browser from the dashboard">Remove</button><span class="pill" data-r="pill"></span></div>
       <div class="where"><div class="t" data-r="title"></div><div class="u" data-r="url"></div></div>
       <div class="err hidden" data-r="err"></div>
-      <div class="shot" data-r="shot" title="Click to bring this window to the front">
-        <img alt="" data-r="img"><div class="ph" data-r="ph"></div><div class="act" data-r="act"></div></div>
+      <div class="shot" data-r="shot">
+        <img alt="" data-r="img" tabindex="0" draggable="false"><div class="ph" data-r="ph"></div><div class="act" data-r="act"></div></div>
       <div class="row">
         <button class="primary" data-a="start">Start</button>
         <button data-a="signin" title="Open without automation to sign in (Google-safe)">Sign in</button>
         <button class="primary hidden" data-a="done" title="Finished signing in">Done signing in</button>
         <button data-a="stop">Stop</button>
-        <button data-a="focus" title="Bring window to front">Focus</button>
+        <button data-a="big" data-r="bigBtn" title="Make this browser larger or smaller in the dashboard">Expand</button>
+        <button data-a="show" data-r="showBtn" title="Put the real browser window on the screen, or hide it again">Pop out</button>
         <button data-a="back" title="Back">←</button>
         <button data-a="reload" title="Reload">⟳</button>
         <button data-a="home" title="Go to the start page">Home</button>
@@ -286,9 +292,12 @@ function makeCard(p) {
   const id = p.id;
   el.addEventListener("click", async e => {
     const b = e.target.closest("[data-a]");
-    if (!b) { if (e.target.closest("[data-r=shot]")) act(id, "focus"); return; }
+    if (!b) return;
     const a = b.dataset.a;
     if (a === "edit") return openProject(id);
+    if (a === "remove") return removeProject(id);
+    if (a === "big") { big[id] = !big[id]; store.set("big", big); return render(); }
+    if (a === "show") { const p = projects.find(x => x.id === id); return act(id, p && p.shown ? "hide" : "show"); }
     if (a === "log") return setLog(id, !showLog[id]);
     if (a === "copylog") return copy((logs[id] || []).join("\n"), "Log copied");
     if (a === "clear") { logs[id] = []; redrawLog(id); return act(id, "clear"); }
@@ -317,8 +326,7 @@ function makeCard(p) {
   });
   refs.go.addEventListener("keydown", e => { if (e.key === "Enter") el.querySelector("[data-a=goto]").click(); });
   refs.text.addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); el.querySelector("[data-a=send]").click(); } });
-  refs.img.addEventListener("load", () => { refs.shot.classList.add("has"); schedShot(id); });
-  refs.img.addEventListener("error", () => { refs.shot.classList.remove("has"); schedShot(id, 5000); });
+  wireView(id, refs.img);
   return { el, refs };
 }
 
@@ -335,7 +343,7 @@ function statusOf(p) {
 function render() {
   const grid = $("#grid");
   const ids = projects.map(p => p.id);
-  for (const id in cards) if (!ids.includes(id)) { cards[id].el.remove(); delete cards[id]; }
+  for (const id in cards) if (!ids.includes(id)) { if (views[id]) views[id].ws.close(); cards[id].el.remove(); delete cards[id]; }
   let running = 0;
   projects.forEach((p, i) => {
     let c = cards[p.id];
@@ -356,10 +364,13 @@ function render() {
     btn("signin").classList.toggle("hidden", on || p.state === "starting");
     btn("done").classList.toggle("hidden", !(on && p.signin));
     btn("stop").classList.toggle("hidden", !(on || p.state === "starting"));
-    for (const a of ["focus", "back", "reload", "home", "goto", "send", "nudge", "read"]) btn(a).disabled = !ctl;
+    for (const a of ["show", "back", "reload", "home", "goto", "send", "nudge", "read"]) btn(a).disabled = !ctl;
     btn("home").disabled = !ctl || !p.url;
     btn("nudge").disabled = !ctl || !p.nudge;
     btn("send").disabled = !ctl || p.busy;
+    r.showBtn.textContent = p.shown ? "Hide window" : "Pop out";
+    el.classList.toggle("big", !!big[p.id]);
+    r.bigBtn.textContent = big[p.id] ? "Shrink" : "Expand";
     r.text.disabled = r.go.disabled = !ctl;
     for (const [sw, k] of [[r.swNudge, "auto_nudge"], [r.swSave, "save_replies"], [r.swCon, "console"]]) {
       sw.querySelector("input").checked = !!p[k]; sw.classList.toggle("on", !!p[k]);
@@ -368,9 +379,9 @@ function render() {
     r.act.textContent = p.action ? p.action + "…" : ""; r.act.classList.toggle("show", !!p.action);
     r.ph.textContent = !on ? (p.state === "starting" ? "Opening…" : "Browser closed")
       : p.signin ? "Sign-in mode: the dashboard isn't touching this window. Sign in there, then click Done signing in."
-      : thumbs ? "Loading preview…" : "Previews are off. Click to bring the window to the front.";
+      : thumbs ? "Connecting…" : "Live view is off. Turn it on in the header, or use Pop out.";
     if (!ctl || !thumbs) { r.shot.classList.remove("has"); r.img.removeAttribute("src"); }
-    else if (!shotT[p.id]) schedShot(p.id, 50);
+    syncView(p);
     tickNext(p, r);
   });
   $("#empty").classList.toggle("hidden", projects.length > 0);
@@ -390,19 +401,48 @@ function tickNext(p, r) {
 }
 setInterval(() => projects.forEach(p => cards[p.id] && tickNext(p, cards[p.id].refs)), 15000);
 
-// ---------- previews ----------
-const shotT = {};
-function schedShot(id, delay) {
-  clearTimeout(shotT[id]);
-  shotT[id] = setTimeout(() => {
-    shotT[id] = 0;
-    const p = projects.find(x => x.id === id), c = cards[id];
-    if (!p || !c || !thumbs || p.state !== "running" || p.signin) return;
-    if (document.hidden) return schedShot(id, 2000);
-    c.refs.img.src = `/api/shot?id=${encodeURIComponent(id)}&t=${Date.now()}`;
-  }, delay ?? 2500);
+// ---------- live view ----------
+// Each running browser is streamed into its card; mouse and keys go back to it.
+const views = {};             // id -> {ws, w, h}  (w, h = the page's size in its own pixels)
+function syncView(p) {
+  const v = views[p.id], want = thumbs && p.state === "running" && !p.signin;
+  if (!want) { if (v) v.ws.close(); return; }
+  if (v) return;
+  const c = cards[p.id], id = p.id;
+  const ws = new WebSocket(`ws://${location.host}/api/view?id=${encodeURIComponent(id)}`);
+  const me = views[id] = { ws, w: 0, h: 0 };
+  ws.onmessage = ev => {
+    const m = JSON.parse(ev.data);
+    me.w = m.w; me.h = m.h;
+    c.refs.img.src = "data:image/jpeg;base64," + m.d;
+    c.refs.shot.classList.add("has");
+  };
+  ws.onclose = () => { if (views[id] === me) delete views[id]; c.refs.shot.classList.remove("has"); setTimeout(render, 1500); };
 }
-document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
+function wireView(id, img) {
+  const send = o => { const v = views[id]; if (v && v.ws.readyState === 1) v.ws.send(JSON.stringify(o)); };
+  const mods = e => (e.altKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.metaKey ? 4 : 0) | (e.shiftKey ? 8 : 0);
+  const BTN = ["left", "middle"];   // right-click opens a native menu the stream can't show
+  const mouse = (k, e, extra) => {
+    const v = views[id]; if (!v || !v.w) return;
+    const r = img.getBoundingClientRect();
+    send({ t: "m", k, x: (e.clientX - r.left) / r.width * v.w, y: (e.clientY - r.top) / r.height * v.h, m: mods(e), bs: e.buttons & 5, ...extra });
+  };
+  img.addEventListener("mousedown", e => { e.preventDefault(); img.focus(); if (BTN[e.button]) mouse("mousePressed", e, { b: BTN[e.button], c: e.detail || 1 }); });
+  img.addEventListener("mouseup", e => { if (BTN[e.button]) mouse("mouseReleased", e, { b: BTN[e.button], c: e.detail || 1 }); });
+  let moveAt = 0;
+  img.addEventListener("mousemove", e => { const now = performance.now(); if (now - moveAt < 30) return; moveAt = now; mouse("mouseMoved", e, { b: e.buttons & 1 ? "left" : "none" }); });
+  img.addEventListener("wheel", e => { e.preventDefault(); mouse("mouseWheel", e, { b: "none", dx: e.deltaX, dy: e.deltaY }); }, { passive: false });
+  img.addEventListener("contextmenu", e => e.preventDefault());
+  img.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") return;   // arrives as a paste event below
+    e.preventDefault();
+    const text = e.key === "Enter" ? "\r" : (e.key.length === 1 && !e.ctrlKey && !e.metaKey ? e.key : "");
+    send({ t: "k", k: text ? "keyDown" : "rawKeyDown", key: e.key, code: e.code, vk: e.keyCode, m: mods(e), text });
+  });
+  img.addEventListener("keyup", e => { e.preventDefault(); send({ t: "k", k: "keyUp", key: e.key, code: e.code, vk: e.keyCode, m: mods(e) }); });
+  img.addEventListener("paste", e => { e.preventDefault(); const t = e.clipboardData.getData("text"); if (t) send({ t: "t", text: t }); });
+}
 
 // ---------- logs ----------
 function setLog(id, on, quiet) {
@@ -456,11 +496,12 @@ $("#fProj").addEventListener("submit", async e => {
   try { await saveProject(cfg); $("#dProj").close(); toast("Saved"); } catch (err) { toast(err.message, true); }
 });
 $("#pCancel").onclick = () => $("#dProj").close();
-$("#pDel").onclick = async () => {
-  const p = projects.find(x => x.id === editing);
-  if (!p || !confirm(`Delete "${p.name}"? Its browser closes. Its sign-in profile and saved replies stay in the data folder.`)) return;
-  try { await post(`/api/project/delete?id=${encodeURIComponent(p.id)}`); $("#dProj").close(); } catch (err) { toast(err.message, true); }
-};
+async function removeProject(id) {
+  const p = projects.find(x => x.id === id);
+  if (!p || !confirm(`Remove "${p.name}"? Its browser closes. Its sign-in profile and saved replies stay in the data folder.`)) return false;
+  try { await post(`/api/project/delete?id=${encodeURIComponent(p.id)}`); return true; } catch (err) { toast(err.message, true); return false; }
+}
+$("#pDel").onclick = async () => { if (await removeProject(editing)) $("#dProj").close(); };
 $("#pLeft").onclick = () => post(`/api/project/move?id=${encodeURIComponent(editing)}&d=-1`).catch(e => toast(e.message, true));
 $("#pRight").onclick = () => post(`/api/project/move?id=${encodeURIComponent(editing)}&d=1`).catch(e => toast(e.message, true));
 

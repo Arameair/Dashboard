@@ -80,6 +80,11 @@ type Project struct {
 	shotMu sync.Mutex
 	shot   []byte
 	shotAt time.Time
+
+	shown   bool // window is on the screen (otherwise parked off-screen, seen through the dashboard)
+	viewMu  sync.Mutex
+	castMu  sync.Mutex // start/stop of the stream, so a leaving viewer can't stop a new one
+	viewers map[chan []byte]struct{}
 }
 
 // ---------- logging ----------
@@ -158,8 +163,15 @@ func (p *Project) launch(gen int, cfg ProjectCfg, signin bool) {
 		"--disable-background-timer-throttling",
 		"--disable-backgrounding-occluded-windows",
 		"--disable-renderer-backgrounding",
-		"--new-window", start,
+		"--disable-features=CalculateNativeWinOcclusion",
+		fmt.Sprintf("--window-size=%d,%d", winW, winH),
 	}
+	if signin {
+		args = append(args, fmt.Sprintf("--window-position=%d,%d", shownX, shownY))
+	} else { // the window stays off-screen; the dashboard shows it
+		args = append(args, fmt.Sprintf("--window-position=%d,%d", hiddenX, hiddenY))
+	}
+	args = append(args, "--new-window", start)
 	cmd := exec.Command(exe, args...)
 	if err := cmd.Start(); err != nil {
 		p.fail(gen, fmt.Errorf("couldn't start %s: %w", filepath.Base(exe), err))
@@ -227,9 +239,11 @@ func (p *Project) up(gen int, cmd *exec.Cmd, port int) bool {
 		return false
 	}
 	p.state, p.port, p.cmd = stRunning, port, cmd
+	signin := p.signin
 	p.mu.Unlock()
 	p.m.dirty()
 	p.logf("browser ready")
+	_ = p.placeWindow(signin) // also covers a browser that was already open
 	go p.monitor(gen)
 	return true
 }
@@ -253,7 +267,7 @@ func (p *Project) gone(gen int, why string) {
 		p.mu.Unlock()
 		return
 	}
-	p.state, p.port, p.cmd, p.signin = stStopped, 0, nil, false
+	p.state, p.port, p.cmd, p.signin, p.shown = stStopped, 0, nil, false, false
 	p.title, p.curURL, p.targetID, p.busy, p.hasInput, p.action = "", "", "", false, false, ""
 	p.mu.Unlock()
 	p.detach()
@@ -556,7 +570,7 @@ func (p *Project) tab() (context.Context, error) {
 		go stop()
 		return nil, errors.New("couldn't attach: timed out")
 	}
-	chromedp.ListenTarget(ctx, p.onEvent)
+	chromedp.ListenTarget(ctx, func(ev any) { p.onEvent(ctx, ev) })
 	p.tabCtx, p.tabStop, p.tabTarget, p.tabPort = ctx, stop, want, port
 	return ctx, nil
 }
@@ -573,7 +587,12 @@ func (p *Project) detach() {
 	p.tabCtx, p.tabStop, p.allocCtx, p.allocStop, p.tabTarget, p.tabPort = nil, nil, nil, nil, "", 0
 }
 
-func (p *Project) onEvent(ev any) {
+func (p *Project) onEvent(ctx context.Context, ev any) {
+	if e, ok := ev.(*page.EventScreencastFrame); ok {
+		go func() { _ = run(ctx, 3*time.Second, page.ScreencastFrameAck(e.SessionID)) }()
+		p.pubFrame(e)
+		return
+	}
 	p.mu.Lock()
 	on := p.cfg.Console
 	p.mu.Unlock()
@@ -629,6 +648,7 @@ func (p *Project) Do(a, arg string) (res string, err error) {
 		if was {
 			p.logf("sign-in mode off: the dashboard can control this browser now")
 			p.m.dirty()
+			_ = p.placeWindow(false)
 		}
 		return "", nil
 	case "clear":
@@ -654,7 +674,12 @@ func (p *Project) Do(a, arg string) (res string, err error) {
 	p.mu.Unlock()
 
 	switch a {
-	case "focus":
+	case "hide":
+		return "", p.placeWindow(false)
+	case "show":
+		if err := p.placeWindow(true); err != nil {
+			return "", err
+		}
 		return "", run(ctx, 5*time.Second, chromedp.ActionFunc(func(ctx context.Context) error {
 			if id, b, err := browser.GetWindowForTarget().Do(ctx); err == nil && b.WindowState == browser.WindowStateMinimized {
 				_ = browser.SetWindowBounds(id, &browser.Bounds{WindowState: browser.WindowStateNormal}).Do(ctx)

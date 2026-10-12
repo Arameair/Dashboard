@@ -15,12 +15,17 @@ WHERE PROJECTS COME FROM
 
 EACH PROJECT = ONE BROWSER
   Every card is its own Chrome window with its own profile, so each one stays signed in
-  separately.
+  separately. The window itself is kept off-screen: you see and use it inside its card.
+  Live view          click, scroll, type and paste straight into the card.
+  Expand / Shrink    make one card full width so the page is a comfortable size.
+  Pop out / Hide window   put the real window on the screen, or park it again. File
+                     pickers, right-click menus and other pop-ups only show in the real
+                     window. The parked windows still appear on the taskbar.
+  Remove             take the browser out of the dashboard (its profile is kept).
   Start / Stop       open or close that browser. Closing the window yourself works too.
-  Sign in            opens the browser WITHOUT any automation attached, so Google sign-in
-                     works. Sign in, then click "Done signing in". Only needed once per
-                     project; the sign-in is remembered.
-  Focus / click the preview   brings that window to the front.
+  Sign in            opens the browser on the screen WITHOUT any automation attached, so
+                     Google sign-in works. Sign in, then click "Done signing in" and the
+                     window moves into the dashboard. Only needed once per project.
   Go to address, Back, Reload, Home (the project's start page).
   Message + Send     types into the chat box, checks it went in exactly, presses Enter.
                      Refuses to send while the chat is still generating.
@@ -32,8 +37,8 @@ EACH PROJECT = ONE BROWSER
   Show log / Hide log   per project. "Logs" in the header shows or hides all of them.
 
 HEADER
-  Start all, Stop all, Tile windows (arranges every browser in a grid on your screen),
-  Previews (live thumbnails on/off), + Project, Settings, Quit.
+  Start all, Stop all, Tile windows (pops every browser out in a grid on your screen),
+  Live view (the in-card browsers on/off), + Project, Settings, Quit.
   Quit asks whether to leave the browsers open. If you leave them open (or just close the
   black window), the next start reconnects to them automatically.
 

@@ -30,6 +30,7 @@ import (
 
 	"github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/chromedp"
+	"github.com/gobwas/ws"
 )
 
 //go:embed index.html
@@ -277,8 +278,13 @@ func (m *Manager) tile() error {
 		}))
 		if err != nil {
 			ps[i].logf("tile: %v", err)
+			continue
 		}
+		ps[i].mu.Lock()
+		ps[i].shown = true
+		ps[i].mu.Unlock()
 	}
+	m.dirty()
 	return nil
 }
 
@@ -289,6 +295,7 @@ type projView struct {
 	State     string `json:"state"`
 	Err       string `json:"err"`
 	Signin    bool   `json:"signin"`
+	Shown     bool   `json:"shown"`
 	Title     string `json:"title"`
 	CurURL    string `json:"cur_url"`
 	Busy      bool   `json:"busy"`
@@ -301,7 +308,7 @@ func (m *Manager) stateJSON() []byte {
 	var views []projView
 	for _, p := range m.list() {
 		p.mu.Lock()
-		v := projView{ProjectCfg: p.cfg, State: p.state, Err: p.err, Signin: p.signin, Title: p.title,
+		v := projView{ProjectCfg: p.cfg, State: p.state, Err: p.err, Signin: p.signin, Shown: p.shown, Title: p.title,
 			CurURL: p.curURL, Busy: p.busy, HasInput: p.hasInput, Action: p.action}
 		if p.cfg.AutoNudge && !p.nextNudge.IsZero() {
 			v.NextNudge = p.nextNudge.UnixMilli()
@@ -474,6 +481,23 @@ func main() {
 		w.Header().Set("Content-Type", "image/jpeg")
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(b)
+	})
+	mux.HandleFunc("GET /api/view", func(w http.ResponseWriter, r *http.Request) {
+		p := m.get(r.URL.Query().Get("id"))
+		if p == nil {
+			http.NotFound(w, r)
+			return
+		}
+		// A WebSocket is a GET, so other websites must be refused here.
+		if r.Header.Get("Origin") != "http://"+r.Host {
+			http.Error(w, "forbidden", 403)
+			return
+		}
+		conn, _, _, err := ws.UpgradeHTTP(r, w)
+		if err != nil {
+			return
+		}
+		p.serveView(conn)
 	})
 	mux.HandleFunc("GET /api/log", func(w http.ResponseWriter, r *http.Request) {
 		p := m.get(r.URL.Query().Get("id"))

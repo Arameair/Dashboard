@@ -2,8 +2,9 @@
 
 One local page that controls several real browsers. Each project is its own
 Chrome or Edge window with its own profile, so each stays signed in separately.
-From the page you start and stop them, see what each is showing, navigate, send
-a message, read the latest reply, auto-nudge on a timer and read each log.
+The windows are kept off-screen and shown live inside the page, where you click
+and type in them directly. You can also start and stop them, navigate, send a
+message, read the latest reply, auto-nudge on a timer and read each log.
 
 Everything stays on this computer: the page is served on 127.0.0.1 only.
 
@@ -51,5 +52,6 @@ Settings, browser profiles, logs and saved replies are kept outside the repo in
 
 ## Branches
 
-- `main`: this version.
+- `main`: browsers open as separate windows.
+- `feature/embedded-view`: this branch, with the browsers inside the page.
 - `stable`: the earlier project launcher that `main` replaced.
