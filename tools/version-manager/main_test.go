@@ -134,3 +134,11 @@ func TestApprovalRoutesRejectCrossOriginAndUntrustedHost(t *testing.T) {
  }
  if m.find("alpha-source").Runnable{t.Fatal("malicious approval request changed version")}
 }
+
+func TestRegisteredExecutableMustBeRegularFile(t *testing.T) {
+ dir:=t.TempDir()
+ if err:=validExecutable(dir);err==nil{t.Fatal("directory accepted as executable")}
+ exe:=filepath.Join(dir,"fixture.exe")
+ if err:=os.WriteFile(exe,[]byte("synthetic executable"),0700);err!=nil{t.Fatal(err)}
+ if err:=validExecutable(exe);err!=nil{t.Fatalf("ordinary synthetic file rejected: %v",err)}
+}
