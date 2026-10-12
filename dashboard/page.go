@@ -152,7 +152,14 @@ async function pollLog(){
  }catch(e){}finally{logBusy=false}
 }
 async function refresh(){
- try{const r=await fetch('/api/state');S=await r.json()}catch(e){$('eng').textContent='Dashboard closed: reopen Dashboard.exe';$('eng').className='pill no';return}
+ try{const r=await fetch('/api/state');if(!r.ok)throw new Error('state request failed');S=await r.json()}catch(e){
+  $('workspace-status').textContent='Dashboard disconnected';
+  $('eng').textContent='Dashboard unavailable';$('eng').className='pill no';
+  $('stopall').disabled=true;
+  document.querySelectorAll('#acts [data-a], #fin, #stop').forEach(b=>b.disabled=true);
+  if($('st'))$('st').textContent='Status unavailable: reconnecting…';
+  return
+ }
  if(!S.projects.some(p=>p.ID===sel))sel=S.projects.length?S.projects[0].ID:null;
  const running=S.projects.filter(p=>p.State==='running'||p.State==='waiting').length;
  $('workspace-status').textContent=S.projects.length+' project'+(S.projects.length===1?'':'s')+' · '+running+' running';
