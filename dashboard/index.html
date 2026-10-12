@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teams Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='12' height='12' rx='3' fill='%233b82f6'/%3E%3Crect x='18' y='2' width='12' height='12' rx='3' fill='%2316a34a'/%3E%3Crect x='2' y='18' width='12' height='12' rx='3' fill='%23ea580c'/%3E%3Crect x='18' y='18' width='12' height='12' rx='3' fill='%239333ea'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f4f4f2; --panel: #ffffff; --ink: #1a1a19; --mute: #6c6b66; --line: #e2e1dc; --soft: #f0efeb;
+  --accent: #2563eb; --ok: #15803d; --warn: #b45309; --bad: #b91c1c; --logbg: #121212; --logink: #d6d6d2;
+  --radius: 12px; --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111111; --panel: #1b1b1a; --ink: #ecebe7; --mute: #9d9b95; --line: #2e2d2b; --soft: #242422;
+    --accent: #60a5fa; --ok: #4ade80; --warn: #fbbf24; --bad: #f87171; --logbg: #0b0b0b; --logink: #cfcfca; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, "Segoe UI", sans-serif; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { padding: 6px 11px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; white-space: nowrap; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .4; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.danger { color: var(--bad); }
+button.ghost { border-color: transparent; background: transparent; }
+button.ghost:hover:not(:disabled) { background: var(--soft); border-color: transparent; }
+input[type=text], input[type=number], textarea { width: 100%; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+input:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: -1px; }
+textarea { resize: vertical; min-height: 38px; }
+
+header { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line); }
+.hwrap { max-width: 1500px; margin: 0 auto; padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+.brand h1 { font-size: 17px; margin: 0; letter-spacing: -.01em; }
+.brand .sum { color: var(--mute); font-size: 13px; }
+.sep { width: 1px; height: 22px; background: var(--line); margin: 0 2px; }
+.toggle[aria-pressed=true] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.offline { display: none; background: var(--bad); color: #fff; text-align: center; padding: 6px; font-weight: 600; }
+.offline.show { display: block; }
+
+main { max-width: 1500px; margin: 0 auto; padding: 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; align-items: start; }
+@media (max-width: 440px) { .grid { grid-template-columns: 1fr; } }
+.empty { text-align: center; color: var(--mute); padding: 60px 0; }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.card .stripe { height: 4px; background: var(--pc); }
+.card .body { padding: 12px; display: flex; flex-direction: column; gap: 9px; }
+.top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.chip { flex: none; width: 26px; height: 26px; border-radius: 7px; background: var(--pc); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 12px; }
+.name { font-weight: 650; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill { margin-left: auto; flex: none; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--mute); text-transform: uppercase; letter-spacing: .03em; }
+.pill.running { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+.pill.busy { color: var(--accent); border-color: var(--accent); }
+.pill.starting, .pill.stopping, .pill.signin { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+.pill.error { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
+.where { font-size: 12.5px; color: var(--mute); min-width: 0; }
+.where .t { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.where .u { font-family: var(--mono); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.err { font-size: 12.5px; color: var(--bad); }
+.shot { position: relative; aspect-ratio: 16 / 9; border-radius: 8px; border: 1px solid var(--line); background: var(--soft); overflow: hidden; cursor: pointer; }
+.shot img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: none; }
+.shot.has img { display: block; }
+.shot .ph { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mute); font-size: 12.5px; text-align: center; padding: 10px; }
+.shot.has .ph { display: none; }
+.shot .act { position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,.65); color: #fff; font-size: 11.5px; padding: 2px 8px; border-radius: 6px; display: none; }
+.shot .act.show { display: block; }
+.row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.row.nowrap { flex-wrap: nowrap; }
+.row .grow { flex: 1; min-width: 0; }
+.msg { display: flex; gap: 6px; align-items: stretch; }
+.msg textarea { flex: 1; min-width: 0; }
+.autos { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12.5px; }
+.sw { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 99px; cursor: pointer; user-select: none; color: var(--mute); }
+.sw input { margin: 0; accent-color: var(--accent); }
+.sw.on { color: var(--ink); border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.next { color: var(--mute); font-size: 12px; }
+.logbar { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.logbar .count { color: var(--mute); font-size: 12px; margin-right: auto; }
+pre.log { margin: 0; background: var(--logbg); color: var(--logink); padding: 8px 10px; border-radius: 8px; height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12px/1.45 var(--mono); display: none; }
+pre.log.show { display: block; }
+.hidden { display: none !important; }
+
+dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--ink); padding: 0; width: min(560px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+dialog form, dialog .dbody { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+dialog h2 { margin: 0; font-size: 17px; }
+dialog label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--mute); }
+dialog label.inline { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); }
+dialog .two { display: grid; grid-template-columns: 1fr 120px; gap: 10px; }
+dialog .foot { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 4px; }
+dialog .foot .left { margin-right: auto; display: flex; gap: 6px; }
+dialog .hint { font-size: 12px; color: var(--mute); margin: -6px 0 0; }
+dialog pre.reply { margin: 0; max-height: 55vh; overflow: auto; white-space: pre-wrap; word-break: break-word; background: var(--soft); padding: 10px; border-radius: 8px; font: 13px/1.5 system-ui, sans-serif; }
+input[type=color] { width: 48px; height: 34px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 15px; border-radius: 9px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100vw - 32px); z-index: 50; }
+.toast.show { opacity: 1; }
+.toast.bad { background: var(--bad); color: #fff; }
+</style>
+</head>
+<body>
+<div class="offline" id="offline">The dashboard program isn't running. Start TeamsDashboard.exe again; this page will reconnect.</div>
+<header>
+  <div class="hwrap">
+    <div class="brand"><h1>Teams Dashboard</h1><span class="sum" id="sum"></span></div>
+    <button id="startAll" title="Open every browser">Start all</button>
+    <button id="stopAll" title="Close every browser">Stop all</button>
+    <button id="tile" title="Arrange the browser windows in a grid">Tile windows</button>
+    <span class="sep"></span>
+    <button id="logsAll" class="toggle" aria-pressed="false" title="Show or hide every log">Logs</button>
+    <button id="thumbs" class="toggle" aria-pressed="true" title="Live previews of each browser">Previews</button>
+    <span class="sep"></span>
+    <button id="addBtn">+ Project</button>
+    <button id="setBtn" class="ghost" title="Settings">Settings</button>
+    <button id="quitBtn" class="ghost">Quit</button>
+  </div>
+</header>
+<main>
+  <div class="grid" id="grid"></div>
+  <div class="empty hidden" id="empty">No projects yet. Click <b>+ Project</b> to add a browser.</div>
+</main>
+
+<dialog id="dProj">
+  <form method="dialog" id="fProj">
+    <h2 id="dProjTitle">Project</h2>
+    <div class="two">
+      <label>Name<input type="text" name="name" required maxlength="60" placeholder="Seat 01"></label>
+      <label>Color<input type="color" name="color"></label>
+    </div>
+    <label>Start page<input type="text" name="url" placeholder="https://chatgpt.com/..."></label>
+    <label>Nudge message<textarea name="nudge" rows="4" placeholder="What 'Nudge now' and auto-nudge send"></textarea></label>
+    <div class="two">
+      <label class="inline"><input type="checkbox" name="auto_nudge"> Auto-nudge when idle</label>
+      <label>Every (minutes)<input type="number" name="nudge_minutes" min="1" max="1440" value="10"></label>
+    </div>
+    <label class="inline"><input type="checkbox" name="save_replies"> Save new replies to files</label>
+    <label class="inline"><input type="checkbox" name="console"> Copy the page's console messages into the log</label>
+    <label class="inline"><input type="checkbox" name="auto_start"> Open this browser when the dashboard starts</label>
+    <div class="foot">
+      <div class="left">
+        <button type="button" class="danger" id="pDel">Delete</button>
+        <button type="button" class="ghost" id="pLeft" title="Move earlier">←</button>
+        <button type="button" class="ghost" id="pRight" title="Move later">→</button>
+      </div>
+      <button type="button" id="pCancel">Cancel</button>
+      <button type="submit" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dSet">
+  <form method="dialog" id="fSet">
+    <h2>Settings</h2>
+    <label>Browser program<input type="text" name="browser_path" placeholder="Found automatically"></label>
+    <p class="hint" id="found"></p>
+    <label>Message box selector<input type="text" name="input"></label>
+    <label>Reply selector<input type="text" name="reply"></label>
+    <label>"Still generating" selector<input type="text" name="busy"></label>
+    <p class="hint">The selectors are set up for ChatGPT. Clear a box and save to restore its default.</p>
+    <div class="foot">
+      <div class="left"><button type="button" id="openData">Open data folder</button></div>
+      <button type="button" id="sCancel">Cancel</button>
+      <button type="submit" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dReply">
+  <div class="dbody">
+    <h2 id="replyTitle">Latest reply</h2>
+    <pre class="reply" id="replyText"></pre>
+    <div class="foot">
+      <div class="left"><button type="button" id="replyFolder">Open saved replies</button></div>
+      <button type="button" id="replyCopy">Copy</button>
+      <button type="button" class="primary" id="replyClose">Close</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dQuit">
+  <div class="dbody">
+    <h2>Quit the dashboard?</h2>
+    <p style="margin:0;color:var(--mute)">Browsers you leave open keep their tabs and sign-ins; the dashboard reconnects to them next time.</p>
+    <div class="foot">
+      <button type="button" id="qCancel">Cancel</button>
+      <button type="button" id="qClose">Quit and close browsers</button>
+      <button type="button" class="primary" id="qLeave">Quit, leave browsers open</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("td5:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("td5:" + k, JSON.stringify(v)); } catch {} },
+};
+
+let projects = [];            // latest state from the program
+let settings = {};
+const logs = {};              // id -> array of lines
+const cards = {};             // id -> {el, refs}
+const showLog = store.get("showLog", {});
+let thumbs = store.get("thumbs", true);
+let dataDir = "";
+
+// ---------- server calls ----------
+async function post(url, body) {
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  let j = {};
+  try { j = await r.json(); } catch {}
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j.result;
+}
+async function act(id, a, arg) {
+  try { return await post(`/api/act?id=${encodeURIComponent(id)}&a=${a}`, { Arg: arg || "" }); }
+  catch (e) { toast(e.message, true); return null; }
+}
+let toastT;
+function toast(msg, bad) {
+  const t = $("#toast");
+  t.textContent = msg; t.className = "toast show" + (bad ? " bad" : "");
+  clearTimeout(toastT); toastT = setTimeout(() => t.className = "toast", bad ? 4500 : 2200);
+}
+
+// ---------- live updates ----------
+function connect() {
+  const es = new EventSource("/api/events");
+  es.onopen = () => $("#offline").classList.remove("show");
+  es.onerror = () => $("#offline").classList.add("show");
+  es.onmessage = ev => {
+    const m = JSON.parse(ev.data);
+    if (m.t === "state") { projects = m.projects || []; settings = m.settings || {}; dataDir = m.data; render(); }
+    else if (m.t === "logs") { for (const id in m.logs) { logs[id] = m.logs[id] || []; redrawLog(id); } }
+    else if (m.t === "log") { addLines(m.id, m.lines); }
+  };
+}
+
+// ---------- cards ----------
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const initials = n => (n.match(/\d+/) || [n.replace(/[^A-Za-z]/g, "").slice(0, 2) || "?"])[0].slice(0, 2).toUpperCase();
+
+function makeCard(p) {
+  const el = document.createElement("section");
+  el.className = "card";
+  el.innerHTML = `
+    <div class="stripe"></div>
+    <div class="body">
+      <div class="top"><span class="chip" data-r="chip"></span><span class="name" data-r="name"></span>
+        <button class="ghost" data-a="edit" title="Edit project">Edit</button><span class="pill" data-r="pill"></span></div>
+      <div class="where"><div class="t" data-r="title"></div><div class="u" data-r="url"></div></div>
+      <div class="err hidden" data-r="err"></div>
+      <div class="shot" data-r="shot" title="Click to bring this window to the front">
+        <img alt="" data-r="img"><div class="ph" data-r="ph"></div><div class="act" data-r="act"></div></div>
+      <div class="row">
+        <button class="primary" data-a="start">Start</button>
+        <button data-a="signin" title="Open without automation to sign in (Google-safe)">Sign in</button>
+        <button class="primary hidden" data-a="done" title="Finished signing in">Done signing in</button>
+        <button data-a="stop">Stop</button>
+        <button data-a="focus" title="Bring window to front">Focus</button>
+        <button data-a="back" title="Back">←</button>
+        <button data-a="reload" title="Reload">⟳</button>
+        <button data-a="home" title="Go to the start page">Home</button>
+      </div>
+      <div class="row nowrap"><input type="text" class="grow" data-r="go" placeholder="Go to address…" spellcheck="false"><button data-a="goto">Go</button></div>
+      <div class="msg"><textarea data-r="text" rows="2" placeholder="Message (Ctrl+Enter to send)"></textarea><button data-a="send">Send</button></div>
+      <div class="autos">
+        <button data-a="nudge" title="Send the nudge message now">Nudge now</button>
+        <button data-a="read" title="Read the latest reply">Read reply</button>
+        <label class="sw" data-r="swNudge"><input type="checkbox" data-k="auto_nudge"> Auto-nudge</label>
+        <label class="sw" data-r="swSave"><input type="checkbox" data-k="save_replies"> Save replies</label>
+        <label class="sw" data-r="swCon"><input type="checkbox" data-k="console"> Console</label>
+        <span class="next" data-r="next"></span>
+      </div>
+      <div class="logbar"><button data-a="log" data-r="logBtn">Show log</button><span class="count" data-r="count"></span>
+        <button class="ghost" data-a="copylog">Copy</button><button class="ghost" data-a="clear">Clear</button></div>
+      <pre class="log" data-r="log"></pre>
+    </div>`;
+  const refs = {};
+  el.querySelectorAll("[data-r]").forEach(n => refs[n.dataset.r] = n);
+  const id = p.id;
+  el.addEventListener("click", async e => {
+    const b = e.target.closest("[data-a]");
+    if (!b) { if (e.target.closest("[data-r=shot]")) act(id, "focus"); return; }
+    const a = b.dataset.a;
+    if (a === "edit") return openProject(id);
+    if (a === "log") return setLog(id, !showLog[id]);
+    if (a === "copylog") return copy((logs[id] || []).join("\n"), "Log copied");
+    if (a === "clear") { logs[id] = []; redrawLog(id); return act(id, "clear"); }
+    if (a === "goto") { const v = refs.go.value.trim(); if (!v) return refs.go.focus(); if (await act(id, "goto", v) !== null) refs.go.value = ""; return; }
+    if (a === "send") {
+      const v = refs.text.value;
+      if (!v.trim()) return refs.text.focus();
+      b.disabled = true;
+      const r = await act(id, "send", v);
+      b.disabled = false;
+      if (r !== null) { refs.text.value = ""; toast("Sent"); }
+      return;
+    }
+    b.disabled = true;
+    const r = await act(id, a);
+    b.disabled = false;
+    if (a === "read" && r) showReply(id, r);
+    if (a === "nudge" && r) toast("Nudge sent");
+  });
+  el.addEventListener("change", e => {
+    const k = e.target.dataset.k;
+    if (!k) return;
+    const p = projects.find(x => x.id === id);
+    if (!p) return;
+    saveProject({ ...cfgOf(p), [k]: e.target.checked }).catch(err => toast(err.message, true));
+  });
+  refs.go.addEventListener("keydown", e => { if (e.key === "Enter") el.querySelector("[data-a=goto]").click(); });
+  refs.text.addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); el.querySelector("[data-a=send]").click(); } });
+  refs.img.addEventListener("load", () => { refs.shot.classList.add("has"); schedShot(id); });
+  refs.img.addEventListener("error", () => { refs.shot.classList.remove("has"); schedShot(id, 5000); });
+  return { el, refs };
+}
+
+function statusOf(p) {
+  if (p.state === "running") {
+    if (p.signin) return ["signin", "sign-in"];
+    if (p.busy) return ["busy", "working"];
+    return ["running", "running"];
+  }
+  if (p.state === "stopped" && p.err) return ["error", "error"];
+  return [p.state, p.state];
+}
+
+function render() {
+  const grid = $("#grid");
+  const ids = projects.map(p => p.id);
+  for (const id in cards) if (!ids.includes(id)) { cards[id].el.remove(); delete cards[id]; }
+  let running = 0;
+  projects.forEach((p, i) => {
+    let c = cards[p.id];
+    if (!c) { c = cards[p.id] = makeCard(p); redrawLog(p.id); setLog(p.id, showLog[p.id] ?? true, true); }
+    if (grid.children[i] !== c.el) grid.insertBefore(c.el, grid.children[i] || null);
+    const r = c.refs, el = c.el, on = p.state === "running", ctl = on && !p.signin;
+    if (on) running++;
+    el.style.setProperty("--pc", p.color);
+    r.chip.textContent = initials(p.name);
+    r.name.textContent = p.name;
+    const [cls, label] = statusOf(p);
+    r.pill.className = "pill " + cls; r.pill.textContent = label;
+    r.title.textContent = on ? (p.title || "(no title)") : (p.err ? "" : "Not running");
+    r.url.textContent = on ? p.cur_url : p.url;
+    r.err.textContent = p.err; r.err.classList.toggle("hidden", !p.err || on);
+    const btn = a => el.querySelector(`[data-a=${a}]`);
+    btn("start").classList.toggle("hidden", on || p.state === "starting");
+    btn("signin").classList.toggle("hidden", on || p.state === "starting");
+    btn("done").classList.toggle("hidden", !(on && p.signin));
+    btn("stop").classList.toggle("hidden", !(on || p.state === "starting"));
+    for (const a of ["focus", "back", "reload", "home", "goto", "send", "nudge", "read"]) btn(a).disabled = !ctl;
+    btn("home").disabled = !ctl || !p.url;
+    btn("nudge").disabled = !ctl || !p.nudge;
+    btn("send").disabled = !ctl || p.busy;
+    r.text.disabled = r.go.disabled = !ctl;
+    for (const [sw, k] of [[r.swNudge, "auto_nudge"], [r.swSave, "save_replies"], [r.swCon, "console"]]) {
+      sw.querySelector("input").checked = !!p[k]; sw.classList.toggle("on", !!p[k]);
+    }
+    r.swNudge.title = `Send the nudge every ${p.nudge_minutes} min when the chat is idle`;
+    r.act.textContent = p.action ? p.action + "…" : ""; r.act.classList.toggle("show", !!p.action);
+    r.ph.textContent = !on ? (p.state === "starting" ? "Opening…" : "Browser closed")
+      : p.signin ? "Sign-in mode: the dashboard isn't touching this window. Sign in there, then click Done signing in."
+      : thumbs ? "Loading preview…" : "Previews are off. Click to bring the window to the front.";
+    if (!ctl || !thumbs) { r.shot.classList.remove("has"); r.img.removeAttribute("src"); }
+    else if (!shotT[p.id]) schedShot(p.id, 50);
+    tickNext(p, r);
+  });
+  $("#empty").classList.toggle("hidden", projects.length > 0);
+  $("#sum").textContent = projects.length ? `${running} of ${projects.length} running` : "";
+  $("#tile").disabled = running === 0;
+  $("#stopAll").disabled = running === 0 && !projects.some(p => p.state === "starting");
+  $("#startAll").disabled = projects.every(p => p.state !== "stopped");
+  const anyLog = projects.some(p => showLog[p.id]);
+  $("#logsAll").setAttribute("aria-pressed", anyLog);
+}
+
+function tickNext(p, r) {
+  if (!p.auto_nudge || !p.next_nudge || p.state !== "running") { r.next.textContent = p.auto_nudge ? `every ${p.nudge_minutes} min` : ""; return; }
+  const ms = p.next_nudge - Date.now();
+  const at = new Date(p.next_nudge).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  r.next.textContent = ms > 60000 ? `next ${at} (in ${Math.round(ms / 60000)} min)` : ms > 0 ? `next ${at} (under a minute)` : "due now";
+}
+setInterval(() => projects.forEach(p => cards[p.id] && tickNext(p, cards[p.id].refs)), 15000);
+
+// ---------- previews ----------
+const shotT = {};
+function schedShot(id, delay) {
+  clearTimeout(shotT[id]);
+  shotT[id] = setTimeout(() => {
+    shotT[id] = 0;
+    const p = projects.find(x => x.id === id), c = cards[id];
+    if (!p || !c || !thumbs || p.state !== "running" || p.signin) return;
+    if (document.hidden) return schedShot(id, 2000);
+    c.refs.img.src = `/api/shot?id=${encodeURIComponent(id)}&t=${Date.now()}`;
+  }, delay ?? 2500);
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
+
+// ---------- logs ----------
+function setLog(id, on, quiet) {
+  showLog[id] = on; if (!quiet) store.set("showLog", showLog);
+  const c = cards[id]; if (!c) return;
+  c.refs.log.classList.toggle("show", on);
+  c.refs.logBtn.textContent = on ? "Hide log" : "Show log";
+  if (on) { redrawLog(id); c.refs.log.scrollTop = c.refs.log.scrollHeight; }
+  if (!quiet) render();
+}
+function redrawLog(id) {
+  const c = cards[id]; if (!c) return;
+  const L = logs[id] || [];
+  c.refs.count.textContent = L.length ? `${L.length} line${L.length === 1 ? "" : "s"}` : "empty";
+  if (showLog[id]) c.refs.log.textContent = L.join("\n");
+}
+function addLines(id, lines) {
+  const L = logs[id] || (logs[id] = []);
+  L.push(...lines);
+  const c = cards[id]; if (!c) return;
+  if (L.length > 1200) { L.splice(0, L.length - 1000); redrawLog(id); }
+  c.refs.count.textContent = `${L.length} lines`;
+  if (!showLog[id]) return;
+  const pre = c.refs.log, stick = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 40;
+  pre.append((pre.textContent ? "\n" : "") + lines.join("\n"));
+  if (stick) pre.scrollTop = pre.scrollHeight;
+}
+
+// ---------- project dialog ----------
+const cfgOf = p => ({ id: p.id, name: p.name, url: p.url, color: p.color, nudge: p.nudge, nudge_minutes: p.nudge_minutes,
+  auto_nudge: p.auto_nudge, save_replies: p.save_replies, console: p.console, auto_start: p.auto_start });
+const saveProject = cfg => post("/api/project", cfg);
+let editing = null;
+function openProject(id) {
+  const f = $("#fProj"), p = projects.find(x => x.id === id);
+  editing = p ? p.id : null;
+  $("#dProjTitle").textContent = p ? "Edit project" : "New project";
+  const v = p ? cfgOf(p) : { name: "", url: "https://chatgpt.com/", color: ["#3b82f6", "#16a34a", "#ea580c", "#9333ea", "#db2777", "#0891b2"][projects.length % 6],
+    nudge: "", nudge_minutes: 10, auto_nudge: false, save_replies: true, console: false, auto_start: false };
+  for (const k of ["name", "url", "color", "nudge", "nudge_minutes"]) f.elements[k].value = v[k] ?? "";
+  for (const k of ["auto_nudge", "save_replies", "console", "auto_start"]) f.elements[k].checked = !!v[k];
+  for (const b of ["#pDel", "#pLeft", "#pRight"]) $(b).classList.toggle("hidden", !p);
+  $("#dProj").showModal();
+}
+$("#fProj").addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target, p = projects.find(x => x.id === editing);
+  const cfg = { ...(p ? cfgOf(p) : {}), id: editing || "", name: f.elements.name.value, url: f.elements.url.value, color: f.elements.color.value,
+    nudge: f.elements.nudge.value, nudge_minutes: +f.elements.nudge_minutes.value || 10 };
+  for (const k of ["auto_nudge", "save_replies", "console", "auto_start"]) cfg[k] = f.elements[k].checked;
+  try { await saveProject(cfg); $("#dProj").close(); toast("Saved"); } catch (err) { toast(err.message, true); }
+});
+$("#pCancel").onclick = () => $("#dProj").close();
+$("#pDel").onclick = async () => {
+  const p = projects.find(x => x.id === editing);
+  if (!p || !confirm(`Delete "${p.name}"? Its browser closes. Its sign-in profile and saved replies stay in the data folder.`)) return;
+  try { await post(`/api/project/delete?id=${encodeURIComponent(p.id)}`); $("#dProj").close(); } catch (err) { toast(err.message, true); }
+};
+$("#pLeft").onclick = () => post(`/api/project/move?id=${encodeURIComponent(editing)}&d=-1`).catch(e => toast(e.message, true));
+$("#pRight").onclick = () => post(`/api/project/move?id=${encodeURIComponent(editing)}&d=1`).catch(e => toast(e.message, true));
+
+// ---------- settings ----------
+$("#setBtn").onclick = () => {
+  const f = $("#fSet"), s = settings.selectors || {};
+  f.elements.browser_path.value = settings.browser_path || "";
+  f.elements.input.value = s.input || ""; f.elements.reply.value = s.reply || ""; f.elements.busy.value = s.busy || "";
+  $("#found").textContent = settings.browser_error ? settings.browser_error : `Using: ${settings.browser_found}`;
+  $("#dSet").showModal();
+};
+$("#fSet").addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await post("/api/settings", { browser_path: f.elements.browser_path.value,
+      selectors: { input: f.elements.input.value, reply: f.elements.reply.value, busy: f.elements.busy.value } });
+    $("#dSet").close(); toast("Settings saved");
+  } catch (err) { toast(err.message, true); }
+});
+$("#sCancel").onclick = () => $("#dSet").close();
+$("#openData").onclick = () => post("/api/open").then(d => toast("Opened " + d)).catch(e => toast(e.message, true));
+
+// ---------- reply dialog ----------
+let replyFor = null;
+function showReply(id, text) {
+  const p = projects.find(x => x.id === id);
+  replyFor = id;
+  $("#replyTitle").textContent = `Latest reply · ${p ? p.name : id}`;
+  $("#replyText").textContent = text;
+  $("#dReply").showModal();
+}
+$("#replyCopy").onclick = () => copy($("#replyText").textContent, "Reply copied");
+$("#replyClose").onclick = () => $("#dReply").close();
+$("#replyFolder").onclick = () => post(`/api/open?id=${encodeURIComponent(replyFor)}`).catch(e => toast(e.message, true));
+
+async function copy(text, ok) {
+  try { await navigator.clipboard.writeText(text); toast(ok); }
+  catch { const t = document.createElement("textarea"); t.value = text; document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); toast(ok); }
+}
+
+// ---------- header ----------
+$("#startAll").onclick = () => post("/api/all?a=start").catch(e => toast(e.message, true));
+$("#stopAll").onclick = () => post("/api/all?a=stop").catch(e => toast(e.message, true));
+$("#tile").onclick = () => post("/api/all?a=tile").then(() => toast("Windows arranged")).catch(e => toast(e.message, true));
+$("#addBtn").onclick = () => openProject(null);
+$("#logsAll").onclick = () => { const on = !projects.some(p => showLog[p.id]); projects.forEach(p => setLog(p.id, on, true)); store.set("showLog", showLog); render(); };
+const thumbBtn = $("#thumbs");
+thumbBtn.setAttribute("aria-pressed", thumbs);
+thumbBtn.onclick = () => { thumbs = !thumbs; store.set("thumbs", thumbs); thumbBtn.setAttribute("aria-pressed", thumbs); render(); };
+$("#quitBtn").onclick = () => $("#dQuit").showModal();
+$("#qCancel").onclick = () => $("#dQuit").close();
+$("#qLeave").onclick = () => { post("/api/quit").catch(() => {}); $("#dQuit").close(); toast("Dashboard closed"); };
+$("#qClose").onclick = () => { post("/api/quit?close=1").catch(() => {}); $("#dQuit").close(); toast("Closing browsers and the dashboard"); };
+
+connect();
+</script>
+</body>
+</html>

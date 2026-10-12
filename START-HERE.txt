@@ -1,35 +1,61 @@
-DASHBOARD
+DASHBOARD: one page that controls several real browsers
 
-Double-click Start-Dashboard.cmd to start the current version.
-Or run .\Start-Dashboard.ps1 from this folder.
-Keep the terminal open. Ctrl+C closes the dashboard server.
-The root Dashboard.exe is the older packaged build.
+START
+  Double-click Start-Dashboard.cmd. It builds the dashboard (Go is required), a small
+  black window opens (keep it open) and the dashboard opens in your normal browser at
+  http://127.0.0.1:8777/
 
-THE SCREEN
-    Projects sidebar: select a project, add one, or rescan its definitions.
-    Project pane: run actions, watch output, and use Finish or Stop.
-    Dashboard settings: install or reinstall the shared browser engine.
-    Stop all projects: stops project actions across the workspace.
+  It uses the Chrome (or Edge) already on your PC.
 
-Finish presses Enter for a program waiting for you. Stop force-closes that
-program and its browser. Several projects can run at once.
+WHERE PROJECTS COME FROM
+  The dashboard starts empty. Add a browser with + Project, or list projects in a
+  definition file: any .json in projects\, and ..\Teams\dashboard\ when the Teams repo
+  is cloned next to this one (that is where Team 01 to 04 are defined).
+  A definition only adds projects you don't have yet; see projects\README.md.
 
-THE FOLDERS
-    dashboard\      dashboard source and UI
-    projects\       project definitions, sources, and local programs
-    runtime\        dashboard builds and generated output (ignored by Git)
-    runtime\logs\<project-id>\last-run.log
-                    the dashboard's most recent log for each project
+EACH PROJECT = ONE BROWSER
+  Every card is its own Chrome window with its own profile, so each one stays signed in
+  separately.
+  Start / Stop       open or close that browser. Closing the window yourself works too.
+  Sign in            opens the browser WITHOUT any automation attached, so Google sign-in
+                     works. Sign in, then click "Done signing in". Only needed once per
+                     project; the sign-in is remembered.
+  Focus / click the preview   brings that window to the front.
+  Go to address, Back, Reload, Home (the project's start page).
+  Message + Send     types into the chat box, checks it went in exactly, presses Enter.
+                     Refuses to send while the chat is still generating.
+  Nudge now          sends the project's nudge message.
+  Read reply         shows the latest reply (and saves it).
+  Auto-nudge         sends the nudge every N minutes, only when the chat is idle.
+  Save replies       every new finished reply is saved as a .md file.
+  Console            copies the page's own console messages/errors into the log.
+  Show log / Hide log   per project. "Logs" in the header shows or hides all of them.
 
-Shared project browser files remain in projects\managed\, projects\runs\,
-and projects\artifacts\. Saved ChatGPT sign-in stays in the browser profile.
-These folders, project-generated logs, and test reports are ignored by Git.
+HEADER
+  Start all, Stop all, Tile windows (arranges every browser in a grid on your screen),
+  Previews (live thumbnails on/off), + Project, Settings, Quit.
+  Quit asks whether to leave the browsers open. If you leave them open (or just close the
+  black window), the next start reconnects to them automatically.
 
-Dashboard and projects stay in the same repository for now. For an external
-project workspace later, use Start-Dashboard.ps1 -Projects <full folder path>.
+EDIT A PROJECT (Edit on the card)
+  Name, color, start page, nudge text, interval, auto-start, and move it left/right.
+  Delete closes its browser but keeps its profile and saved replies.
 
-ADDING PROJECTS
-Use "+ Add project" to point at a folder and executable you already have,
-or add a project.json folder under projects\ and click Rescan.
+WHERE THINGS ARE KEPT  (Settings > Open data folder)
+  %LOCALAPPDATA%\TeamsDashboard\v5\
+    config.json          projects and settings (edited from the dashboard)
+    profiles\<project>\  each browser's own profile (sign-ins, cookies)
+    replies\<project>\   saved replies, one .md per reply
+    logs\<project>.log   full log history
 
-The running dashboard never commits, pushes, resets, or checks out Git files.
+IF CHATGPT CHANGES ITS PAGE
+  Settings has the three selectors used to find the message box, the replies and the
+  "still generating" button. Clear a box and save to restore the default.
+
+BUILDING
+  Start-Dashboard.cmd rebuilds every time into runtime\bin\Dashboard.exe.
+  (Go 1.24+. All dependencies are in dashboard\vendor, so no downloads are needed.)
+
+SAFETY
+  The dashboard only listens on 127.0.0.1 and refuses requests from other websites.
+  It never touches git. Automating ChatGPT is outside Teams' M1A rules, same as before.

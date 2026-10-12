@@ -1,39 +1,10 @@
-# Runtime artifacts and generated project state
-managed/
-runs/
-artifacts/
+# Builds and Go's build cache (made by Start-Dashboard)
 /runtime/
-/dashboard.local.json
-/go.work.sum
+*.exe
+/dashboard/dashboard
 
-# Test logs, including rotated files and logs without a .log extension
-*.log
-*.log.*
-*.log-*
-logs/
-test-results/
-playwright-report/
-*.test
-coverage.out
-coverage-*.out
+# Definition files you only want on this computer
+/projects/*.local.json
 
-# Built binaries and local caches
-**/*.exe
-**/*.dll
-**/*.db
-**/*.db-journal
-**/Last Browser
-**/Local State
-**/Default/
-**/Crashpad/
-**/GPUPersistentCache/
-**/ShaderCache/
-**/Safe Browsing/
-**/SegmentationPlatform/
-**/component_crx_cache/
-**/extensions_crx_cache/
-**/first_party_sets.db*
-
-# OS/editor noise
 .DS_Store
 Thumbs.db

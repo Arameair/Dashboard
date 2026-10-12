@@ -1,87 +1,55 @@
 # Dashboard
 
-A local Go dashboard for choosing projects, running their actions, and watching
-their output. Dashboard controls and project controls have separate places in
-the UI.
+One local page that controls several real browsers. Each project is its own
+Chrome or Edge window with its own profile, so each stays signed in separately.
+From the page you start and stop them, see what each is showing, navigate, send
+a message, read the latest reply, auto-nudge on a timer and read each log.
 
-## Repository layout
-
-```text
-dashboard/                 Dashboard server and web UI (Go module)
-projects/                  Project definitions and each project's source
-  round2-original/
-  round2-p1/
-  teams-nudger/
-  managed/                 Shared browser engine (ignored)
-  runs/                    Browser profiles / saved sign-in (ignored)
-  artifacts/               Generated screenshots (ignored)
-runtime/                   Dashboard builds, test output, and logs (ignored)
-  logs/<project-id>/last-run.log
-go.work                    Lets dashboard commands run from the repo root
-```
-
-Dashboard and projects remain in one Git repository for now. The dashboard can
-use an external projects folder later without changing project definitions.
+Everything stays on this computer: the page is served on 127.0.0.1 only.
 
 ## Run
 
-Double-click `Start-Dashboard.cmd` (or run `./Start-Dashboard.ps1`). It builds the current dashboard
-into `runtime/bin/`, opens its browser page, and runs until Ctrl+C. Go is required.
-The existing root `Dashboard.exe` is an older build; the launcher builds the new
-version without overwriting or stopping it.
+Double-click `Start-Dashboard.cmd` (or run `./Start-Dashboard.ps1`). It builds
+the dashboard into `runtime/bin/`, opens the page at http://127.0.0.1:8777/ and
+runs until the window is closed. Go 1.24 or newer is required; every dependency
+is in `dashboard/vendor`, so nothing is downloaded.
 
-Alternatively:
+Closing the dashboard leaves the browsers open. The next start reconnects.
 
-```powershell
-go run ./dashboard
+## Projects
+
+The dashboard itself starts empty. Projects come from:
+
+- **+ Project** on the page, and
+- definition files: `projects/*.json` in this repo and, when the
+  [Teams](https://github.com/Arameair/Teams) repo is cloned next to this one,
+  `../Teams/dashboard/*.json`.
+
+So the usual layout is:
+
+```text
+<folder>/Dashboard    this repo: the app
+<folder>/Teams        the Teams project: its browsers are defined in dashboard/teams.json
 ```
 
-For environments that block executables in Go's temporary build folder, use the
-launcher or build directly:
+See [projects/README.md](projects/README.md) for the file format. Future
+projects work the same way: add a definition file, or pass `-projects`.
 
-```powershell
-go build -o runtime/bin/Dashboard.exe ./dashboard
-./runtime/bin/Dashboard.exe
+## Layout
+
+```text
+dashboard/             Go source and the page (index.html); vendor/ holds dependencies
+projects/              project definition files
+runtime/               builds and Go's cache (ignored by Git)
+Start-Dashboard.cmd    build and run
+Start-Dashboard.ps1    same, with -Projects and -NoOpen
+START-HERE.txt         how to use the page
 ```
 
-On the screen, choose a project from the Projects sidebar. Its actions, Finish,
-Stop, and run output appear in the project pane. Dashboard settings contains the
-shared engine controls. Stop all projects applies to the whole workspace.
+Settings, browser profiles, logs and saved replies are kept outside the repo in
+`%LOCALAPPDATA%\TeamsDashboard\v5\` (Settings > Open data folder).
 
-## Project folders and logs
+## Branches
 
-By default the dashboard reads `projects/`. `+ Add project` registers a program
-in another folder without copying its source. Rescan reloads project definitions.
-
-For a separate workspace later:
-
-```powershell
-./Start-Dashboard.ps1 -Projects 'C:\path\to\projects'
-```
-
-`-projects` overrides the optional, ignored `dashboard.local.json` setting:
-
-```json
-{"projects": "projects"}
-```
-
-Relative project paths in that configuration are resolved from the dashboard
-repository/package root. The selected external folder must already exist.
-`-logs <folder>` overrides the dashboard's `runtime/logs/` location.
-`-no-browser` suppresses automatic browser opening.
-
-Logs, rotated logs (`*.log.*`, `*.log-*`), `logs/`, browser state, test reports,
-coverage output, and builds are ignored. Ignore rules do not remove files already
-tracked by Git; no tracked logs were found during this change.
-
-## Checks
-
-```powershell
-go test ./dashboard
-go vet ./dashboard
-./scripts/Check-Dashboard.ps1
-```
-
-The HTTP check starts an isolated dashboard and a local fixture, verifies project
-loading and log placement, then stops only its own server. It does not send chat
-messages or run the bundled browser projects.
+- `main`: this version.
+- `stable`: the earlier project launcher that `main` replaced.
