@@ -20,7 +20,7 @@ type Version struct { ID string `json:"id"`; Name string `json:"name"`; Channel 
 type Catalog struct { Versions []Version `json:"versions"`; SelectedID string `json:"selectedId"`; RunningID string `json:"runningId"` }
 type Event struct { At string `json:"at"`; Level string `json:"level"`; Kind string `json:"kind"`; VersionID string `json:"versionId"`; Message string `json:"message"` }
 type Status struct { State string `json:"state"`; SelectedID string `json:"selectedId"`; RunningID string `json:"runningId"`; LastKnownGoodID string `json:"lastKnownGoodId"`; PID int `json:"pid"`; Port int `json:"port"`; Message string `json:"message"` }
-type manager struct { mu sync.Mutex; path string; catalog Catalog; status Status; events []Event }
+type manager struct { mu sync.Mutex; path string; catalog Catalog; status Status; events []Event; eventStart int }
 
 func newManager(path string) (*manager,error) {
  m:= &manager{path:path,status:Status{State:"IDLE"}}
@@ -37,7 +37,7 @@ func newManager(path string) (*manager,error) {
  m.status.SelectedID=m.catalog.SelectedID
  return m,nil
 }
-func (m *manager) record(level,kind,id,msg string){ m.events=append(m.events,Event{At:time.Now().UTC().Format(time.RFC3339Nano),Level:level,Kind:kind,VersionID:id,Message:msg}); if len(m.events)>500 {m.events=m.events[len(m.events)-500:]} }
+func (m *manager) record(level,kind,id,msg string){ m.events=append(m.events,Event{At:time.Now().UTC().Format(time.RFC3339Nano),Level:level,Kind:kind,VersionID:id,Message:msg}); if len(m.events)>500 {drop:=len(m.events)-500;m.events=m.events[drop:];m.eventStart+=drop} }
 func (m *manager) persist() error {
  if err:=os.MkdirAll(filepath.Dir(m.path),0700);err!=nil{return err}
  b,err:=json.MarshalIndent(m.catalog,"","  ");if err!=nil{return err}
@@ -77,10 +77,10 @@ func (m *manager) handler(static string) http.Handler {
  mux.HandleFunc("DELETE /api/versions/{id}",func(w http.ResponseWriter,r *http.Request){
   id:=r.PathValue("id");m.mu.Lock();defer m.mu.Unlock();v:=m.find(id);if v==nil{bad(w,404,"version not found");return}
   if v.Protected||m.catalog.RunningID==id {bad(w,409,"protected or running version cannot be removed");return}
-  old:=append([]Version(nil),m.catalog.Versions...)
+  old:=append([]Version(nil),m.catalog.Versions...);oldSelected:=m.catalog.SelectedID
   for i:=range m.catalog.Versions {if m.catalog.Versions[i].ID==id{m.catalog.Versions=append(m.catalog.Versions[:i],m.catalog.Versions[i+1:]...);break}}
   if m.catalog.SelectedID==id{m.catalog.SelectedID="";m.status.SelectedID=""}
-  if e:=m.persist();e!=nil{m.catalog.Versions=old;bad(w,500,"catalog save failed");return}
+  if e:=m.persist();e!=nil{m.catalog.Versions=old;m.catalog.SelectedID=oldSelected;m.status.SelectedID=oldSelected;bad(w,500,"catalog save failed");return}
   m.record("INFO","UNREGISTER",id,"catalog entry removed; executable and user files untouched");writeJSON(w,200,map[string]string{"result":"unregistered"})
  })
  mux.HandleFunc("POST /api/select",func(w http.ResponseWriter,r *http.Request){
@@ -91,12 +91,12 @@ func (m *manager) handler(static string) http.Handler {
  })
  mux.HandleFunc("GET /api/status",func(w http.ResponseWriter,r *http.Request){m.mu.Lock();defer m.mu.Unlock();writeJSON(w,200,m.status)})
  mux.HandleFunc("GET /api/log",func(w http.ResponseWriter,r *http.Request){
-  m.mu.Lock();defer m.mu.Unlock();cursor:=0;fmt.Sscanf(r.URL.Query().Get("cursor"),"%d",&cursor);if cursor<0{cursor=0};if cursor>len(m.events){cursor=len(m.events)}
-  writeJSON(w,200,map[string]any{"events":m.events[cursor:],"next":len(m.events)})
+  m.mu.Lock();defer m.mu.Unlock();cursor:=0;fmt.Sscanf(r.URL.Query().Get("cursor"),"%d",&cursor);if cursor<m.eventStart{cursor=m.eventStart};if cursor>m.eventStart+len(m.events){cursor=m.eventStart+len(m.events)}
+  writeJSON(w,200,map[string]any{"events":m.events[cursor-m.eventStart:],"next":m.eventStart+len(m.events)})
  })
  for _,action:=range []string{"launch","stop","rollback"} {a:=action;mux.HandleFunc("POST /api/"+a,func(w http.ResponseWriter,r *http.Request){bad(w,501,a+" disabled until isolated process-lifecycle verification is implemented")})}
  mux.HandleFunc("GET /",func(w http.ResponseWriter,r *http.Request){if r.URL.Path!="/"{http.FileServer(http.Dir(static)).ServeHTTP(w,r);return};http.ServeFile(w,r,filepath.Join(static,"index.html"))})
- return mux
+ return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){host:=r.Host;if h,_,e:=net.SplitHostPort(host);e==nil{host=h};if host!="127.0.0.1"&&host!="localhost"{bad(w,403,"non-loopback host rejected");return};if r.Method=="POST"||r.Method=="DELETE"{if origin:=r.Header.Get("Origin");origin!=""{if origin!="http://127.0.0.1:18776"&&origin!="http://localhost:18776"{bad(w,403,"cross-origin mutation rejected");return}}};mux.ServeHTTP(w,r)})
 }
 func main(){
  data:=os.Getenv("ALPHA_VM_DATA");if data==""{data=filepath.Join("runtime","version-manager-alpha")}
