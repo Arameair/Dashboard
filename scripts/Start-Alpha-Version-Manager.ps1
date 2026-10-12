@@ -18,7 +18,7 @@ try {
     try {
         $versionOutput = & $GoExe version
         if ($LASTEXITCODE -ne 0) { throw "Go 1.24+ is required (no automatic toolchain download)" }
-        if (($versionOutput -join " ") -notmatch "go version go(\\d+)\\.(\\d+)") { throw "Could not verify local Go version" }
+        if (($versionOutput -join " ") -notmatch "go version go(\d+)\.(\d+)") { throw "Could not verify local Go version" }
         $goMajor = [int]$Matches[1]; $goMinor = [int]$Matches[2]
         if ($goMajor -lt 1 -or ($goMajor -eq 1 -and $goMinor -lt 24)) { throw "Local Go 1.24+ required; found: $versionOutput" }
         & $GoExe build -o $binary .
