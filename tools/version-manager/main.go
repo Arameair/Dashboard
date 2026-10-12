@@ -99,7 +99,10 @@ func (m *manager) handler(static string) http.Handler {
  // Approval endpoints fail closed until a manager-built, locally attested stage
  // and distinct operator-consent UI session exist. Catalog entries are NOT stages.
  mux.HandleFunc("GET /api/approval-preview",func(w http.ResponseWriter,r *http.Request){
-  if r.URL.Query().Get("id")=="" {bad(w,400,"version id required");return}
+  id:=r.URL.Query().Get("id")
+  if id=="" {bad(w,400,"version id required");return}
+  m.mu.Lock();exists:=m.find(id)!=nil;m.mu.Unlock()
+  if !exists {bad(w,404,"version not found");return}
   writeJSON(w,422,map[string]string{"error":"BUILD_UNVERIFIED","message":"no manager-verified staged build is available"})
  })
  mux.HandleFunc("POST /api/approvals",func(w http.ResponseWriter,r *http.Request){
