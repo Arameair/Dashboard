@@ -38,6 +38,10 @@ Get **four user-designated ChatGPT browser sessions** visible in the Dashboard a
 
 All seat definitions and scope changes are tracked in this repository. Cards are GitHub-backed **identity/contracts only**; they cannot change a chat's underlying model, run unattended, or transmit messages across chats. Owner manually introduces all four chats. 02 must never assign code changes with overlapping write paths. Roles must ACK before receiving work, and no green traffic light without evidence.
 
+## Operating signal
+
+**01 Instant is the traffic-light interface; 02 High is the continuous coordinator/planner.** Each invocation of 01 returns 🟢 nudge now / 🔴 wait / ⚪ unknown for 02, 03 and 04, a recipient list, the standard [default nudge](DEFAULT-NUDGE.md), and one next action. Green is **whether owner should nudge**, not an assertion that the project works. 02 should actively create/coordinate/clear authorized work on each turn, but cannot operate unprompted in another ChatGPT conversation. 02 supplies 01 with verified GitHub evidence rather than guesses. Enrollment and write authorization remain separate gates.
+
 ## First action
 
 **Only enrollment.** Read the four ID cards, introduce members, obtain ACKs. Then 01 identifies what needs action immediately, while 02 prepares the backlog from #11. Specialists WAIT until READY issues are dispatched.
