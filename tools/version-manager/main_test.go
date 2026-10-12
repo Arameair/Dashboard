@@ -43,3 +43,29 @@ func TestUnsafePathAndLaunchFailClosed(t *testing.T){
   if w.Code!=501{t.Fatalf("%s unexpectedly actionable: %d",action,w.Code)}
  }
 }
+
+func TestAbsoluteLogCursorAfterRollover(t *testing.T) {
+ m,_:=newManager(filepath.Join(t.TempDir(),"catalog.json"))
+ for i:=0;i<510;i++ {m.record("INFO","TEST","","synthetic event")}
+ if m.eventStart!=10 {t.Fatalf("start=%d want=10",m.eventStart)}
+ w:=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,httptest.NewRequest("GET","/api/log?cursor=0",nil))
+ var resp struct{Events []Event `json:"events"`;Next int `json:"next"`}
+ if err:=json.Unmarshal(w.Body.Bytes(),&resp);err!=nil{t.Fatal(err)}
+ if len(resp.Events)!=500||resp.Next!=510{t.Fatalf("events=%d next=%d",len(resp.Events),resp.Next)}
+ m.record("INFO","TEST","","one more")
+ w=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,httptest.NewRequest("GET","/api/log?cursor=510",nil))
+ if err:=json.Unmarshal(w.Body.Bytes(),&resp);err!=nil{t.Fatal(err)}
+ if len(resp.Events)!=1||resp.Next!=511{t.Fatalf("events=%d next=%d",len(resp.Events),resp.Next)}
+}
+func TestRejectUntrustedHostAndOrigin(t *testing.T) {
+ m,_:=newManager(filepath.Join(t.TempDir(),"catalog.json"))
+ for _,tc:=range []struct{method,path,host,origin string}{
+  {"GET","/api/versions","untrusted.invalid:18776",""},
+  {"POST","/api/select","127.0.0.1:18776","https://untrusted.invalid"},
+ }{
+  r:=httptest.NewRequest(tc.method,tc.path,nil);r.Host=tc.host
+  if tc.origin!=""{r.Header.Set("Origin",tc.origin)}
+  w:=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,r)
+  if w.Code!=403{t.Errorf("%s %s got=%d",tc.method,tc.host,w.Code)}
+ }
+}
