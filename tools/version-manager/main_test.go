@@ -116,3 +116,21 @@ func TestApprovalEndpointsRefuseCatalogOnlyVersions(t *testing.T) {
  }
  if m.find("alpha-source").Runnable {t.Fatal("approval changed catalog runnable state")}
 }
+
+func TestApprovalRoutesRejectCrossOriginAndUntrustedHost(t *testing.T) {
+ m,err:=newManager(filepath.Join(t.TempDir(),"catalog.json"));if err!=nil{t.Fatal(err)}
+ h:=m.handler(t.TempDir())
+ for _,tc:=range []struct{method,url,host,origin string}{
+  {"GET","/api/approval-preview?id=alpha-source","outside.example",""},
+  {"POST","/api/approvals","127.0.0.1:18776","http://outside.example"},
+  {"POST","/api/approvals","outside.example",""},
+ } {
+  r:=httptest.NewRequest(tc.method,tc.url,strings.NewReader(`{"id":"alpha-source","challenge":"untrusted","confirmedDigest":"untrusted"}`))
+  r.Host=tc.host
+  if tc.origin!=""{r.Header.Set("Origin",tc.origin)}
+  w:=httptest.NewRecorder();h.ServeHTTP(w,r)
+  if w.Code!=403{t.Fatalf("%s %s host=%s origin=%s status=%d, expected 403",tc.method,tc.url,tc.host,tc.origin,w.Code)}
+  if strings.Contains(w.Body.String(),`"approved":true`){t.Fatal("untrusted request approved")}
+ }
+ if m.find("alpha-source").Runnable{t.Fatal("malicious approval request changed version")}
+}
