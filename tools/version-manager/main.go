@@ -53,6 +53,8 @@ func (m *manager) persist() error {
  return os.Rename(f.Name(),m.path)
 }
 func (m *manager) find(id string) *Version {for i:=range m.catalog.Versions {if m.catalog.Versions[i].ID==id{return &m.catalog.Versions[i]}};return nil}
+func validCommitSHA(v string) bool { if len(v)<7 || len(v)>64{return false};for _,r:=range v{if !strings.ContainsRune("0123456789abcdefABCDEF",r){return false}};return true }
+func validChannel(v string) bool {return v=="Main" || v=="Alpha" || v=="Experimental"}
 func validExecutable(p string) error {
  if p=="" || !filepath.IsAbs(p){return errors.New("absolute executable path required")}
  clean:=filepath.Clean(p)
@@ -70,7 +72,7 @@ func (m *manager) handler(static string) http.Handler {
  mux.HandleFunc("GET /api/versions",func(w http.ResponseWriter,r *http.Request){m.mu.Lock();defer m.mu.Unlock();writeJSON(w,200,m.catalog)})
  mux.HandleFunc("POST /api/versions",func(w http.ResponseWriter,r *http.Request){
   var v Version;if e:=decode(r,&v);e!=nil{bad(w,400,"invalid JSON");return}
-  if v.Name==""||v.Channel==""||v.SHA==""||len(v.SHA)<7||len(v.SHA)>64||v.Branch=="" {bad(w,400,"name, channel, branch and commit SHA required");return}
+  if v.Name==""||v.Channel==""||!validCommitSHA(v.SHA)||!validChannel(v.Channel)||v.Branch=="" {bad(w,400,"name, channel, branch and commit SHA required");return}
   if e:=validExecutable(v.Executable);e!=nil{bad(w,400,e.Error());return}
   h:=sha256.Sum256([]byte(v.Executable+"|"+v.SHA));v.ID=hex.EncodeToString(h[:8]);v.Installed=true;v.Runnable=false;v.Protected=false;v.Managed=false
   m.mu.Lock();defer m.mu.Unlock();if m.find(v.ID)!=nil{bad(w,409,"already registered");return}
