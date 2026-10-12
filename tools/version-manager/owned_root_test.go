@@ -21,4 +21,10 @@ func TestOwnedBuildRootContainment(t *testing.T) {
   if err:=requireOwnedBuild(root,alias);err==nil{t.Fatal("symlink escape accepted")}
  }
  if err:=requireOwnedBuild("relative",inside);err==nil{t.Fatal("relative managed root accepted")}
+ rootAlias:=filepath.Join(t.TempDir(),"aliased-root")
+ if err:=os.Symlink(root,rootAlias);err==nil {
+  if err:=requireOwnedBuild(rootAlias,inside);err==nil{t.Fatal("aliased managed root accepted")}
+  aliasedCandidate:=filepath.Join(rootAlias,"builds","candidate.exe")
+  if err:=requireOwnedBuild(rootAlias,aliasedCandidate);err==nil{t.Fatal("aliased root and candidate accepted")}
+ }
 }
