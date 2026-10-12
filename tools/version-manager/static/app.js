@@ -68,7 +68,7 @@
      if(!Array.isArray(res.events)||!Number.isSafeInteger(res.next)||res.next<0)throw Error('Invalid log response');
      if(res.next<ui.logCursor){ui.events=[]}
      ui.events.push(...res.events);ui.events=ui.events.slice(-150);ui.logCursor=res.next;renderEvents()
-   }catch(err){failure('Log polling failed: '+safeError(err))}
+   }catch(err){setConnected(false);failure('Log polling failed; controls disabled: '+safeError(err));render()}
  }
  async function runAction(path,method='POST',body,confirmMessage){
    if(!ui.connected||ui.busy)return;
