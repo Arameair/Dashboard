@@ -23,7 +23,7 @@ func TestRegisterUnregisterLeavesExecutableIntact(t *testing.T){
  w:=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,httptest.NewRequest("POST","/api/versions",strings.NewReader(body)))
  if w.Code!=201{t.Fatalf("register status=%d body=%s",w.Code,w.Body.String())}
  var v Version;if err:=json.Unmarshal(w.Body.Bytes(),&v);err!=nil{t.Fatal(err)}
- if v.ID==""||!v.Runnable{t.Fatalf("bad registered record: %+v",v)}
+ if v.ID==""||v.Runnable||!v.Installed{t.Fatalf("unverified registered record must be non-runnable: %+v",v)}
  loaded,err:=newManager(path);if err!=nil||loaded.find(v.ID)==nil{t.Fatalf("catalog not durable: %v",err)}
  w=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,httptest.NewRequest("DELETE","/api/versions/"+v.ID,nil))
  if w.Code!=200{t.Fatalf("unregister status=%d",w.Code)}
