@@ -88,3 +88,13 @@ func TestCatalogInputIdentityValidation(t *testing.T) {
  for _,ch:=range []string{"Main","Alpha","Experimental"} {if !validChannel(ch){t.Fatalf("rejected channel %q",ch)}}
  for _,ch:=range []string{"","main","Experimental<script>","Other"} {if validChannel(ch){t.Fatalf("accepted channel %q",ch)}}
 }
+
+func TestRejectSymlinkedExecutableRegistration(t *testing.T) {
+ dir:=t.TempDir()
+ target:=filepath.Join(dir,"fixture.exe")
+ if err:=os.WriteFile(target,[]byte("synthetic"),0700);err!=nil{t.Fatal(err)}
+ link:=filepath.Join(dir,"alias.exe")
+ if err:=os.Symlink(target,link);err!=nil{t.Skipf("symlink unavailable: %v",err)}
+ if err:=validExecutable(link);err==nil{t.Fatal("symlink executable path accepted without explicit review")}
+ if err:=validExecutable(target);err!=nil{t.Fatalf("direct synthetic executable rejected: %v",err)}
+}
