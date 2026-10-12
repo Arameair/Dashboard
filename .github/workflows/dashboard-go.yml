@@ -1,0 +1,22 @@
+name: Go dashboard checks
+on:
+  push:
+    branches:
+      - main
+      - improve/dashboard-reliability
+  pull_request:
+
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: source/go.mod
+      - name: Format
+        run: test -z "$(gofmt -l source/*.go)"
+      - name: Unit tests
+        run: go test -race ./source
+      - name: Vet
+        run: go vet ./source

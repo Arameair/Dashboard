@@ -24,3 +24,6 @@ projects/artifacts/
 # OS/editor noise
 .DS_Store
 Thumbs.db
+
+# Go workspace transient checksums
+/go.work.sum

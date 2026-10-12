@@ -1,20 +1,46 @@
 # Dashboard
 
-Dashboard is a small Go app that serves a local web UI for switching between projects, starting actions, watching logs, and stopping or finishing runs.
+A small Windows-friendly Go dashboard for switching between local projects, starting and stopping programs, and viewing live logs. Project definitions live in `projects/*/project.json`.
 
-## Included in this repo
+## Quick start (Windows / PowerShell)
 
-- `source/main.go` — the dashboard server and project runner
-- `source/page.go` — the embedded HTML/JS UI
-- `projects/*/project.json` — example project definitions and their actions
-- `START-HERE.txt` — quick usage notes for the packaged desktop version
+Requires Go 1.22 or later and internet access for the first download of project dependencies.
 
-## Run locally
+```powershell
+git clone https://github.com/Arameair/Dashboard.git
+Set-Location Dashboard
+pwsh -File ./build.ps1 -Run
+```
 
-1. Open a terminal in this folder.
-2. Run `go run ./source`.
-3. The app opens the browser and uses the local `projects/` folder as its configuration directory.
+The build script compiles `Dashboard.exe` and the three example project executables. It does **not** download the Playwright browser engine or start any project action. The `-Run` switch launches the dashboard after building; omit it if you only want to build.
 
-## Notes
+Once the dashboard opens, click **Install browser engine** once before running a Playwright demo. The dashboard binds only to `127.0.0.1`. Closing its console stops the dashboard; use **Stop all** first to close started projects cleanly.
 
-The repo intentionally ignores large runtime artifacts such as browser engines, browser profiles, and generated logs so the source stays lightweight and easy to push to GitHub.
+## Run the dashboard directly from Go
+
+```powershell
+go run ./source
+```
+
+The root `go.work` makes this command work from the repository directory. The dashboard resolves `projects/` from the executable directory first and falls back to the checkout/current working directory. **Example project executables still need to be built** by `build.ps1` before their buttons can launch them.
+
+To use an external projects folder, set the `DASHBOARD_PROJECTS_DIR` environment variable to its full path before starting.
+
+## Repository layout
+
+- `source/`: dashboard web server and embedded HTML/JS interface
+- `projects/*/project.json`: project definitions and action arguments
+- `projects/*/source/`: example project Go modules
+- `build.ps1`: compile dashboard and bundled projects on Windows
+- `START-HERE.txt`: notes for the separately packaged desktop distribution
+
+## Verify
+
+```powershell
+go test ./source
+go vet ./source
+```
+
+Browser automation tests and sign-in require a locally installed Playwright engine and are **not** exercised by these commands. Do not infer that the Teams nudger or live ChatGPT interactions are validated from a successful Go unit test.
+
+Runtime artifacts (`projects/managed`, `projects/runs`, `projects/artifacts`, project logs, and compiled binaries) are intentionally excluded from Git.

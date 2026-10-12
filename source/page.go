@@ -69,7 +69,7 @@ dialog input{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
  <div class="bar"><button class="pri" value="ok" id="fok">Add</button><button value="cancel" formnovalidate>Cancel</button></div>
 </form></dialog>
 <script>
-let S={projects:[]},sel=null,next=0,logFor=null;
+let S={projects:[]},sel=null,next=0,logFor=null,logRun='',logSerial=0,logBusy=false;
 try{sel=localStorage.getItem('sel')}catch(e){}
 const $=id=>document.getElementById(id);
 async function post(u){const r=await fetch(u,{method:'POST'});if(!r.ok){alert(await r.text());}refresh();return r}
@@ -98,7 +98,7 @@ function renderMain(fresh){
   p.Actions.forEach((a,i)=>{h+='<button data-a="'+i+'" class="'+(a.primary?'pri':'')+'" title="'+esc(a.note||'')+'">'+esc(a.label)+'</button>'});
   h+='<span class="sp"></span><button class="fin" id="fin" title="Presses Enter in the program: a clean close">✔ Finish</button><button class="stop" id="stop">■ Stop</button><button id="openp">Open folder</button></div>';
   h+='<div class="bar"><span class="status" id="st"></span></div><pre id="log"></pre><div class="shot" id="shot"></div>';
-  $('main').innerHTML=h;logFor=p.ID;next=0;
+  $('main').innerHTML=h;logFor=p.ID;next=0;logRun='';logSerial++;
   for(const b of document.querySelectorAll('#acts [data-a]'))b.onclick=()=>post('/api/run?p='+encodeURIComponent(p.ID)+'&a='+b.dataset.a);
   $('fin').onclick=()=>post('/api/finish?p='+encodeURIComponent(p.ID));
   $('stop').onclick=()=>post('/api/stop?p='+encodeURIComponent(p.ID));
@@ -113,13 +113,19 @@ function renderMain(fresh){
  if(sh.dataset.v!==want+p.State){sh.dataset.v=want+p.State;sh.innerHTML=p.HasShot?'<div class="about" style="font-size:13px">Latest screenshot</div><img src="/api/shot?p='+encodeURIComponent(p.ID)+'&t='+Date.now()+'">':''}
 }
 async function pollLog(){
- if(!sel)return;const id=sel;
- try{const r=await fetch('/api/log?p='+encodeURIComponent(id)+'&from='+next);const j=await r.json();
-  if(id!==logFor)return;const l=$('log');if(!l)return;
-  if(j.next<next){l.textContent='';next=0;return pollLog()}
-  if(j.lines.length){const end=l.scrollTop+l.clientHeight>=l.scrollHeight-30;l.textContent+=j.lines.join('\n')+'\n';if(end)l.scrollTop=l.scrollHeight}
-  next=j.next;
- }catch(e){}
+ if(!sel||logBusy)return;
+ const id=sel,serial=logSerial,from=next,run=logRun;
+ logBusy=true;
+ try{
+  const r=await fetch('/api/log?p='+encodeURIComponent(id)+'&from='+from+'&run='+encodeURIComponent(run));
+  if(!r.ok)throw new Error('log request failed');
+  const j=await r.json();
+  if(id!==logFor||serial!==logSerial)return;
+  const l=$('log');if(!l)return;
+  if(j.reset)l.textContent='';
+  if(j.lines.length){const end=l.scrollTop+l.clientHeight>=l.scrollHeight-30;l.textContent+=j.lines.join('\n')+'\n';if(end||j.reset)l.scrollTop=l.scrollHeight}
+  next=j.next;logRun=j.run;
+ }catch(e){}finally{logBusy=false}
 }
 async function refresh(){
  try{const r=await fetch('/api/state');S=await r.json()}catch(e){$('eng').textContent='Dashboard closed: reopen Dashboard.exe';$('eng').className='pill no';return}

@@ -56,9 +56,9 @@ type run struct {
 	Exit     int       `json:"exit"`
 	Stopped  bool      `json:"stopped"`
 	Log      []string  `json:"-"`
+	LogStart int       `json:"-"` // absolute index of the oldest retained line
 	cmd      *exec.Cmd
 	stdin    io.WriteCloser
-	finished bool
 }
 
 var (
@@ -72,9 +72,12 @@ var (
 // ---------- projects ----------
 
 func loadProjects() ([]project, []string) {
-	var out []project
-	var problems []string
-	ents, _ := os.ReadDir(projDir)
+	out := make([]project, 0)
+	problems := make([]string, 0)
+	ents, err := os.ReadDir(projDir)
+	if err != nil {
+		return out, []string{"cannot read projects folder: " + err.Error()}
+	}
 	for _, e := range ents {
 		if !e.IsDir() {
 			continue
@@ -87,6 +90,10 @@ func loadProjects() ([]project, []string) {
 		var p project
 		if err := json.Unmarshal(b, &p); err != nil {
 			problems = append(problems, e.Name()+": project.json is not valid JSON ("+err.Error()+")")
+			continue
+		}
+		if strings.TrimSpace(p.Exe) == "" || len(p.Actions) == 0 {
+			problems = append(problems, e.Name()+": project.json needs an exe and at least one action")
 			continue
 		}
 		p.ID, p.folder = e.Name(), folder
@@ -143,11 +150,39 @@ func find(id string) (project, bool) {
 	return project{}, false
 }
 
+// findProjectsDir supports both compiled releases and "go run ./source" from a checkout.
+func findProjectsDir(executableDir string) string {
+	if configured := strings.TrimSpace(os.Getenv("DASHBOARD_PROJECTS_DIR")); configured != "" {
+		if abs, err := filepath.Abs(configured); err == nil {
+			return abs
+		}
+		return configured
+	}
+	candidates := []string{filepath.Join(executableDir, "projects")}
+	if wd, err := os.Getwd(); err == nil {
+		candidates = append(candidates, filepath.Join(wd, "projects"), filepath.Join(wd, "..", "projects"))
+	}
+	for _, dir := range candidates {
+		if st, err := os.Stat(dir); err == nil && st.IsDir() {
+			return filepath.Clean(dir)
+		}
+	}
+	return candidates[0]
+}
+
 func fileOK(p string) bool { st, err := os.Stat(p); return err == nil && !st.IsDir() }
 
 func engineInstalled() bool {
 	ents, err := os.ReadDir(filepath.Join(projDir, "managed", "playwright"))
-	return err == nil && len(ents) > 0
+	if err != nil {
+		return false
+	}
+	for _, e := range ents {
+		if e.IsDir() && strings.HasPrefix(e.Name(), "chromium-") {
+			return true
+		}
+	}
+	return false
 }
 
 // ---------- running ----------
@@ -156,7 +191,9 @@ func (r *run) add(s string) {
 	line := time.Now().Format("15:04:05") + "  " + s
 	r.Log = append(r.Log, line)
 	if len(r.Log) > 4000 {
-		r.Log = r.Log[len(r.Log)-4000:]
+		dropped := len(r.Log) - 4000
+		r.Log = r.Log[dropped:]
+		r.LogStart += dropped
 	}
 	if waitRe.MatchString(s) {
 		r.Waiting = true
@@ -200,13 +237,18 @@ func start(p project, a action) error {
 	mu.Unlock()
 
 	if err := c.Start(); err != nil {
+		_ = pw.Close()
+		_ = pr.Close()
+		_ = in.Close()
 		mu.Lock()
 		r.add("could not start: " + err.Error())
 		r.Running, r.Exit, r.Ended = false, 127, time.Now()
 		mu.Unlock()
-		return nil
+		return fmt.Errorf("could not start %s: %w", filepath.Base(exe), err)
 	}
+	logDone := make(chan struct{})
 	go func() {
+		defer close(logDone)
 		sc := bufio.NewScanner(pr)
 		sc.Buffer(make([]byte, 64*1024), 1024*1024)
 		for sc.Scan() {
@@ -214,11 +256,18 @@ func start(p project, a action) error {
 			r.add(sc.Text())
 			mu.Unlock()
 		}
+		if err := sc.Err(); err != nil {
+			mu.Lock()
+			r.add("log read error: " + err.Error())
+			mu.Unlock()
+		}
 	}()
 	go func() {
 		err := c.Wait()
-		pw.Close()
-		time.Sleep(150 * time.Millisecond) // let the last lines arrive
+		_ = pw.Close()
+		<-logDone // all output is accounted for before recording the final status
+		_ = pr.Close()
+		_ = in.Close()
 		code := 0
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
@@ -286,11 +335,23 @@ func stop(id string) {
 func finish(id string) {
 	mu.Lock()
 	r := runs[id]
-	if r != nil && r.Running && r.stdin != nil {
-		r.add("Finish: pressing Enter for you")
-		_, _ = r.stdin.Write([]byte("\r\n"))
+	if r == nil || !r.Running || !r.Waiting || r.stdin == nil {
+		mu.Unlock()
+		return
 	}
+	r.Waiting = false // reject double-clicks while the input is being delivered
+	r.add("Finish: pressing Enter for you")
+	in := r.stdin
 	mu.Unlock()
+
+	// Never hold the global state mutex during a potentially blocking pipe write.
+	go func() {
+		if _, err := in.Write([]byte("\r\n")); err != nil {
+			mu.Lock()
+			r.add("could not send Finish: " + err.Error())
+			mu.Unlock()
+		}
+	}()
 }
 
 // ---------- web ----------
@@ -325,6 +386,22 @@ func state(r *run) (string, string, string) {
 	return "failed", lbl, r.Ended.Format("3:04:05 PM")
 }
 
+// logSince uses absolute cursors so trimming old log lines never stalls polling.
+// The run token also resets the UI when a new run replaces an old one.
+func logSince(r *run, from int, token string) ([]string, int, bool, string) {
+	if r == nil {
+		return []string{}, 0, token != "", ""
+	}
+	runToken := strconv.FormatInt(r.Started.UnixNano(), 10)
+	next := r.LogStart + len(r.Log)
+	reset := token != runToken || from < r.LogStart || from > next
+	if reset {
+		from = r.LogStart
+	}
+	lines := append([]string{}, r.Log[from-r.LogStart:]...)
+	return lines, next, reset, runToken
+}
+
 func jsonOut(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
@@ -336,8 +413,10 @@ func main() {
 		log.Fatal(err)
 	}
 	exeDir = filepath.Dir(exe)
-	projDir = filepath.Join(exeDir, "projects")
-	_ = os.MkdirAll(projDir, 0o755)
+	projDir = findProjectsDir(exeDir)
+	if err := os.MkdirAll(projDir, 0o755); err != nil {
+		log.Fatalf("cannot create projects folder: %v", err)
+	}
 	var problems []string
 	projects, problems = loadProjects()
 
@@ -352,7 +431,7 @@ func main() {
 
 	http.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
-		var vs []projView
+		vs := make([]projView, 0, len(projects))
 		for _, p := range projects {
 			st, cur, since := state(runs[p.ID])
 			shot := p.Screenshot != "" && fileOK(filepath.Join(p.workDir(), p.Screenshot))
@@ -368,17 +447,9 @@ func main() {
 		id := r.URL.Query().Get("p")
 		from, _ := strconv.Atoi(r.URL.Query().Get("from"))
 		mu.Lock()
-		var lines []string
-		n := 0
-		if ru := runs[id]; ru != nil {
-			n = len(ru.Log)
-			if from < 0 || from > n {
-				from = 0
-			}
-			lines = append(lines, ru.Log[from:]...)
-		}
+		lines, next, reset, runToken := logSince(runs[id], from, r.URL.Query().Get("run"))
 		mu.Unlock()
-		jsonOut(w, map[string]any{"lines": lines, "next": n})
+		jsonOut(w, map[string]any{"lines": lines, "next": next, "reset": reset, "run": runToken})
 	})
 
 	http.HandleFunc("/api/shot", func(w http.ResponseWriter, r *http.Request) {
