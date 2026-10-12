@@ -16,8 +16,8 @@ Create an isolated synthetic HTTP fixture on a private loopback port implementin
 | S07 | Launch selected runnable fixture; show exact selected/running transition and process/port returned by server | NOT RUN |
 | S08 | Launch failure/HTTP 501 or port collision; display failure and do not fabricate running state | NOT RUN |
 | S09 | Stop and rollback; confirmation and status follow server truth, errors surfaced | NOT RUN |
-| S10 | Poll logs by cursor with timestamps; enforce bounded 150-event DOM; cursor reset handled | NOT RUN |
-| S11 | Disconnect API or return malformed/5xx responses; buttons disable, error visible, recovery refreshes state | NOT RUN |
+| S10 | Poll logs using absolute cursor across backend 500-event rollover (>500 fixture events), late poll and reconnect; no duplicates/skips, sanitized timestamps, bounded 150-event DOM; cursor reset handled | NOT RUN |
+| S11 | Disconnect versions/status OR fail `/api/log` with malformed/5xx response; all mutation controls disable, error visible; recovery requires fresh status AND log success | NOT RUN |
 | S12 | Inject HTML-like fixture text in names, paths and log message; it displays as inert text | NOT RUN |
 | S13 | Keyboard arrow navigation, tab focus, labels, narrow-screen layout, empty catalog | NOT RUN |
 | S14 | Windows owner test with actual #15 backend, build/start/launch/relaunch/collision/rollback and no profile loss | NOT RUN |
