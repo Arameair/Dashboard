@@ -19,8 +19,10 @@ type binaryEvidence struct {
 }
 
 func inspectBinary(path string) (binaryEvidence,error) {
- if err:=validExecutable(path);err!=nil{return binaryEvidence{},err}
+ if !filepath.IsAbs(path){return binaryEvidence{},errors.New("absolute executable path required")}
  clean:=filepath.Clean(path)
+ canonical,err:=filepath.EvalSymlinks(clean);if err!=nil{return binaryEvidence{},err}
+ if canonical!=clean{return binaryEvidence{},errors.New("executable path is an alias")}
  f,err:=os.Open(clean);if err!=nil{return binaryEvidence{},err}
  defer f.Close()
  before,err:=f.Stat();if err!=nil{return binaryEvidence{},err}
