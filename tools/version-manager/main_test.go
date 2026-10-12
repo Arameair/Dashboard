@@ -104,6 +104,7 @@ func TestApprovalEndpointsRefuseCatalogOnlyVersions(t *testing.T) {
  h:=m.handler(t.TempDir())
  for _,tc:=range []struct{method,url,body string;want int}{
   {"GET","/api/approval-preview?id=alpha-source","",422},
+  {"GET","/api/approval-preview?id=unknown-build","",404},
   {"GET","/api/approval-preview","",400},
   {"POST","/api/approvals",`{"id":"alpha-source","challenge":"any","confirmedDigest":"any"}`,403},
  } {
