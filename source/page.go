@@ -83,7 +83,9 @@ function renderNav(){
  }
  if(!S.projects.length)h='<p class="about" style="padding:8px">No projects found in '+esc(S.folder)+'.</p>';
  if(S.problems&&S.problems.length)h+='<div class="problems">'+S.problems.map(esc).join('<br>')+'</div>';
- $('nav').innerHTML=h;
+ const nav=$('nav');
+ if(nav.innerHTML===h)return; // avoid recreating identical elements every second
+ nav.innerHTML=h;
  for(const el of document.querySelectorAll('.item'))el.onclick=()=>{sel=el.dataset.id;try{localStorage.setItem('sel',sel)}catch(e){};renderNav();renderMain(true)};
 }
 function cur(){return S.projects.find(p=>p.ID===sel)}
@@ -129,7 +131,7 @@ async function pollLog(){
 }
 async function refresh(){
  try{const r=await fetch('/api/state');S=await r.json()}catch(e){$('eng').textContent='Dashboard closed: reopen Dashboard.exe';$('eng').className='pill no';return}
- if(!sel&&S.projects.length)sel=S.projects[0].ID;
+ if(!S.projects.some(p=>p.ID===sel))sel=S.projects.length?S.projects[0].ID:null;
  $('eng').textContent=S.engine?'Browser engine: installed':'Browser engine: not installed yet';
  $('eng').className='pill '+(S.engine?'ok':'no');
  $('inst').textContent=S.engine?'Reinstall engine':'Install browser engine';

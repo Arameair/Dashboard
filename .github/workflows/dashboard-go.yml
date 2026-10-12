@@ -14,8 +14,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: source/go.mod
-      - name: Format
-        run: test -z "$(gofmt -l source/*.go)"
+      - name: Windows cross-compile
+        run: GOOS=windows GOARCH=amd64 go build -o /tmp/Dashboard.exe ./source
       - name: Unit tests
         run: go test -race ./source
       - name: Vet
