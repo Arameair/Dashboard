@@ -96,6 +96,15 @@ func (m *manager) handler(static string) http.Handler {
   prev:=m.catalog.SelectedID;m.catalog.SelectedID=req.ID;if e:=m.persist();e!=nil{m.catalog.SelectedID=prev;bad(w,500,"catalog save failed");return}
   m.status.SelectedID=req.ID;m.record("INFO","SELECT",req.ID,"version selected; not launched");writeJSON(w,200,m.status)
  })
+ // Approval endpoints fail closed until a manager-built, locally attested stage
+ // and distinct operator-consent UI session exist. Catalog entries are NOT stages.
+ mux.HandleFunc("GET /api/approval-preview",func(w http.ResponseWriter,r *http.Request){
+  if r.URL.Query().Get("id")=="" {bad(w,400,"version id required");return}
+  writeJSON(w,422,map[string]string{"error":"BUILD_UNVERIFIED","message":"no manager-verified staged build is available"})
+ })
+ mux.HandleFunc("POST /api/approvals",func(w http.ResponseWriter,r *http.Request){
+  writeJSON(w,403,map[string]string{"error":"APPROVAL_REQUIRED","message":"operator approval is unavailable until secure local staging and consent UI are verified"})
+ })
  mux.HandleFunc("GET /api/status",func(w http.ResponseWriter,r *http.Request){m.mu.Lock();defer m.mu.Unlock();writeJSON(w,200,m.status)})
  mux.HandleFunc("GET /api/log",func(w http.ResponseWriter,r *http.Request){
   m.mu.Lock();defer m.mu.Unlock();cursor:=0;fmt.Sscanf(r.URL.Query().Get("cursor"),"%d",&cursor);if cursor<m.eventStart{cursor=m.eventStart};if cursor>m.eventStart+len(m.events){cursor=m.eventStart+len(m.events)}
