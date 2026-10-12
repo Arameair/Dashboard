@@ -1,12 +1,25 @@
 # Runtime artifacts and generated project state
-projects/managed/
-projects/runs/
-projects/artifacts/
+managed/
+runs/
+artifacts/
+/runtime/
+/dashboard.local.json
+/go.work.sum
+
+# Test logs, including rotated files and logs without a .log extension
+*.log
+*.log.*
+*.log-*
+logs/
+test-results/
+playwright-report/
+*.test
+coverage.out
+coverage-*.out
 
 # Built binaries and local caches
 **/*.exe
 **/*.dll
-**/*.log
 **/*.db
 **/*.db-journal
 **/Last Browser

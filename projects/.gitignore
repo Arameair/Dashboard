@@ -1,0 +1,17 @@
+# Generated browser/runtime state
+/managed/
+/runs/
+/artifacts/
+*.exe
+*.dll
+*.test
+*.log
+*.log.*
+*.log-*
+logs/
+test-results/
+playwright-report/
+coverage.out
+coverage-*.out
+.DS_Store
+Thumbs.db

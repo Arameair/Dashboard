@@ -11,6 +11,11 @@ html,body{height:100%}
 body{margin:0;font:15px/1.4 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--ink);min-height:100%;display:flex;flex-direction:column}
 header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
 header h1{font-size:17px;margin:0 12px 0 0}
+.workspace-status{font-size:13px;color:var(--mute)}
+.dashboard-tools{position:relative}
+.dashboard-tools summary{cursor:pointer;font-size:14px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;list-style:none}
+.settings-panel{position:absolute;right:0;top:calc(100% + 8px);z-index:2;width:300px;padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px #0002;display:flex;flex-direction:column;gap:12px}
+.settings-panel h2{font-size:15px;margin:0}.settings-panel p{font-size:13px;margin:0;color:var(--mute)}
 .pill{font-size:13px;padding:4px 10px;border-radius:99px;border:1px solid var(--line)}
 .pill.ok{color:var(--acc);border-color:var(--acc)} .pill.no{color:var(--warn);border-color:var(--warn)}
 .sp{flex:1}
@@ -21,7 +26,10 @@ button.stop{background:var(--bad);border-color:var(--bad);color:#fff}
 button.fin{background:var(--acc);border-color:var(--acc);color:#fff}
 button.fin.pulse{animation:p 1.2s infinite}@keyframes p{50%{box-shadow:0 0 0 6px #1f6f4340}}
 .wrap{flex:1;display:flex;min-height:0;min-width:0}
-nav{width:290px;border-right:1px solid var(--line);overflow:auto;padding:10px;background:var(--panel)}
+.project-sidebar{width:290px;flex:none;border-right:1px solid var(--line);overflow:auto;background:var(--panel)}
+.sidebar-head{padding:16px 16px 12px;border-bottom:1px solid var(--line)}
+.sidebar-head h2{font-size:16px;margin:0 0 10px}.sidebar-head .bar{gap:6px}.sidebar-head button{padding:6px 10px;font-size:13px}
+nav{padding:0 10px 10px}
 nav h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);margin:14px 6px 6px}
 .item{display:flex;gap:10px;align-items:center;padding:10px;border-radius:8px;cursor:pointer;border:1px solid transparent}
 .item:hover{background:var(--bg)} .item.sel{border-color:var(--acc);background:var(--bg)}
@@ -32,6 +40,11 @@ nav h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--
 .item .n{font-weight:600} .item .s{font-size:12px;color:var(--mute)}
 main{flex:1;display:flex;flex-direction:column;min-width:0;max-width:100%;overflow:hidden;padding:16px;gap:10px}
 main h2{margin:0;font-size:20px} .about{color:var(--mute);margin:0;max-width:900px}
+.project-heading{display:flex;align-items:flex-start;gap:12px}.project-heading>div{flex:1}
+.eyebrow{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.project-controls{padding:12px 0;border-bottom:1px solid var(--line)}
+.run-output{flex:1;display:flex;flex-direction:column;min-height:260px;gap:8px}.run-output h3{font-size:14px;margin:0}.run-output .status{font-size:13px;color:var(--mute)}
+.project-details{font-size:13px;color:var(--mute)}.project-details summary{cursor:pointer}.project-details dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px}.project-details dt{font-weight:600}.project-details dd{margin:0;overflow-wrap:anywhere}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .status{font-weight:600}
 pre{flex:1;min-height:200px;overflow-wrap:anywhere;margin:0;background:var(--log);color:var(--logink);padding:12px;border-radius:8px;overflow:auto;white-space:pre-wrap;font:13px/1.45 ui-monospace,Consolas,monospace}
@@ -42,20 +55,28 @@ dialog label{display:block;margin:10px 0 4px;font-size:13px;color:var(--mute)}
 dialog input{width:100%;font:inherit;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
 .err{color:var(--bad);font-size:13px;min-height:1em}
 .problems{color:var(--bad);font-size:13px;padding:0 6px}
-@media (max-width:760px){body{height:auto}.wrap{display:block}main{display:flex;width:100%}header h1{width:100%}main{overflow:visible}pre{min-height:260px}.wrap{flex-direction:column}nav{width:auto;max-height:38vh;border-right:0;border-bottom:1px solid var(--line)}}
+@media (max-width:760px){body{height:auto}.wrap{display:block}main{display:flex;width:100%}main{overflow:visible}pre{min-height:260px}.project-sidebar{width:auto;max-height:38vh;border-right:0;border-bottom:1px solid var(--line)}.project-heading{flex-wrap:wrap}.settings-panel{position:fixed;left:12px;right:12px;top:70px;width:auto}}
 </style></head><body>
 <header>
  <h1>Dashboard</h1>
- <span id="eng" class="pill">…</span>
- <button id="inst">Install browser engine</button>
+ <span id="workspace-status" class="workspace-status">Connecting…</span>
  <span class="sp"></span>
- <button id="add">+ Add project</button>
- <button id="rescan">Rescan</button>
- <button id="openall">Open projects folder</button>
- <button class="stop" id="stopall">■ Stop all</button>
+ <details class="dashboard-tools"><summary>Dashboard settings</summary><div class="settings-panel">
+  <h2>Shared browser engine</h2>
+  <p>Used by browser projects in this workspace.</p>
+  <span id="eng" class="pill">…</span>
+  <button id="inst">Install browser engine</button>
+ </div></details>
+ <button class="stop" id="stopall" disabled>■ Stop all projects</button>
 </header>
 <div class="wrap">
- <nav id="nav"></nav>
+ <aside class="project-sidebar">
+  <div class="sidebar-head"><h2>Projects</h2><div class="bar">
+   <button id="add">+ Add project</button><button id="rescan">Rescan</button>
+   <button id="openall" title="Open the workspace containing project definitions">Open projects folder</button>
+  </div></div>
+  <nav id="nav" aria-label="Projects"></nav>
+ </aside>
  <main id="main"><p class="empty">Pick a project on the left.</p></main>
 </div>
 <dialog id="dlg"><form method="dialog" id="f">
@@ -79,7 +100,7 @@ function renderNav(){
  let h='',g=null;
  for(const p of S.projects){
   if(p.Group!==g){g=p.Group;h+='<h2>'+esc(g||'Projects')+'</h2>'}
-  h+='<div class="item'+(p.ID===sel?' sel':'')+'" data-id="'+esc(p.ID)+'"><span class="dot '+p.State+'"></span><div><div class="n">'+esc(p.Name)+'</div><div class="s">'+esc(label[p.State])+(p.Current?' · '+esc(p.Current):'')+'</div></div></div>';
+  h+='<button type="button" class="item'+(p.ID===sel?' sel':'')+'" style="width:100%;text-align:left" aria-pressed="'+(p.ID===sel)+'" data-id="'+esc(p.ID)+'"><span class="dot '+p.State+'"></span><span><span class="n" style="display:block">'+esc(p.Name)+'</span><span class="s">'+esc(label[p.State])+(p.Current?' · '+esc(p.Current):'')+'</span></span></button>';
  }
  if(!S.projects.length)h='<p class="about" style="padding:8px">No projects found in '+esc(S.folder)+'.</p>';
  if(S.problems&&S.problems.length)h+='<div class="problems">'+S.problems.map(esc).join('<br>')+'</div>';
@@ -92,12 +113,13 @@ function renderMain(fresh){
  if(!p){$('main').innerHTML='<p class="empty">Pick a project on the left.</p>';return}
  const busy=p.State==='running'||p.State==='waiting';
  if(fresh||!$('log')||logFor!==p.ID){
-  let h='<h2>'+esc(p.Name)+'</h2><p class="about">'+esc(p.About||'')+'</p>';
+  let h='<div class="project-heading"><div><div class="eyebrow">Selected project</div><h2>'+esc(p.Name)+'</h2><p class="about">'+esc(p.About||'')+'</p></div><button id="openp">Open project folder</button></div>';
   if(!p.ExeFound)h+='<p class="err">Program not found: '+esc(p.Exe)+' in '+esc(p.Folder)+'</p>';
-  h+='<div class="bar" id="acts">';
+  h+='<div class="bar project-controls" id="acts" aria-label="Project actions">';
   p.Actions.forEach((a,i)=>{h+='<button data-a="'+i+'" class="'+(a.primary?'pri':'')+'" title="'+esc(a.note||'')+'">'+esc(a.label)+'</button>'});
-  h+='<span class="sp"></span><button class="fin" id="fin" title="Presses Enter in the program: a clean close">✔ Finish</button><button class="stop" id="stop">■ Stop</button><button id="openp">Open folder</button></div>';
-  h+='<div class="bar"><span class="status" id="st"></span></div><pre id="log"></pre><div class="shot" id="shot"></div>';
+  h+='<span class="sp"></span><button class="fin" id="fin" title="Presses Enter in the program: a clean close">✔ Finish</button><button class="stop" id="stop">■ Stop</button></div>';
+  h+='<section class="run-output" aria-label="Run output"><div class="bar"><h3>Run output</h3><span class="sp"></span><span class="status" id="st"></span></div><pre id="log" aria-label="Project log"></pre><div class="shot" id="shot"></div></section>';
+  h+='<details class="project-details"><summary>Project details</summary><dl><dt>Folder</dt><dd>'+esc(p.Folder)+'</dd><dt>Program</dt><dd>'+esc(p.Exe)+'</dd><dt>Run logs</dt><dd>'+esc(S.logs||'runtime/logs')+'</dd></dl></details>';
   $('main').innerHTML=h;logFor=p.ID;next=0;
   for(const b of document.querySelectorAll('#acts [data-a]'))b.onclick=()=>post('/api/run?p='+encodeURIComponent(p.ID)+'&a='+b.dataset.a);
   $('fin').onclick=()=>post('/api/finish?p='+encodeURIComponent(p.ID));
@@ -123,7 +145,10 @@ async function pollLog(){
 }
 async function refresh(){
  try{const r=await fetch('/api/state');S=await r.json()}catch(e){$('eng').textContent='Dashboard closed: reopen Dashboard.exe';$('eng').className='pill no';return}
- if(!sel&&S.projects.length)sel=S.projects[0].ID;
+ if(!S.projects.some(p=>p.ID===sel))sel=S.projects.length?S.projects[0].ID:null;
+ const running=S.projects.filter(p=>p.State==='running'||p.State==='waiting').length;
+ $('workspace-status').textContent=S.projects.length+' project'+(S.projects.length===1?'':'s')+' · '+running+' running';
+ $('stopall').disabled=!running;
  $('eng').textContent=S.engine?'Browser engine: installed':'Browser engine: not installed yet';
  $('eng').className='pill '+(S.engine?'ok':'no');
  $('inst').textContent=S.engine?'Reinstall engine':'Install browser engine';

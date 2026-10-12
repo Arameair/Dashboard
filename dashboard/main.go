@@ -1,6 +1,6 @@
 // Dashboard: one page to switch between the Teams projects and run them.
 //
-// Every project is a folder in projects\ with a project.json that says which
+// Every project is a folder in the configured workspace with a project.json that says which
 // program to run and which buttons to show. Projects come prebuilt, so there
 // is nothing to compile or move. Several projects can run at the same time;
 // click one in the sidebar to see its live log and buttons.
@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -62,17 +63,17 @@ type run struct {
 }
 
 var (
-	exeDir, projDir string
-	mu              sync.Mutex
-	projects        []project
-	runs            = map[string]*run{}
-	waitRe          = regexp.MustCompile(`(?i)press enter`)
+	exeDir, projDir, logDir string
+	mu                      sync.Mutex
+	projects                []project
+	runs                    = map[string]*run{}
+	waitRe                  = regexp.MustCompile(`(?i)press enter`)
 )
 
 // ---------- projects ----------
 
 func loadProjects() ([]project, []string) {
-	var out []project
+	out := make([]project, 0)
 	var problems []string
 	ents, _ := os.ReadDir(projDir)
 	for _, e := range ents {
@@ -238,7 +239,9 @@ func start(p project, a action) error {
 		}
 		logCopy := strings.Join(r.Log, "\n")
 		mu.Unlock()
-		_ = os.WriteFile(filepath.Join(p.folder, "last-run.log"), []byte(logCopy+"\n"), 0o644)
+		if err := saveRunLog(p.ID, logCopy); err != nil {
+			log.Printf("save log for %s: %v", p.ID, err)
+		}
 	}()
 	return nil
 }
@@ -330,14 +333,79 @@ func jsonOut(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// Keep dashboard output separate from the projects it runs.
+func saveRunLog(id, contents string) error {
+	folder := filepath.Join(logDir, id)
+	if err := os.MkdirAll(folder, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(folder, "last-run.log"), []byte(contents+"\n"), 0o644)
+}
+
+// go run uses a temporary executable. Resolve the checkout from the working
+// directory before falling back to the packaged executable's directory.
+func dashboardRoot(executable, cwd string) string {
+	if fileOK(filepath.Join(cwd, "dashboard", "go.mod")) {
+		return cwd
+	}
+	if fileOK(filepath.Join(cwd, "go.mod")) && fileOK(filepath.Join(cwd, "page.go")) {
+		return filepath.Dir(cwd)
+	}
+	return filepath.Dir(executable)
+}
+
 func main() {
+	projectsFlag := flag.String("projects", "", "folder containing project.json project folders")
+	logsFlag := flag.String("logs", "", "dashboard log folder (default: runtime/logs)")
+	noBrowser := flag.Bool("no-browser", false, "do not automatically open the browser")
+	flag.Parse()
 	exe, err := os.Executable()
 	if err != nil {
 		log.Fatal(err)
 	}
-	exeDir = filepath.Dir(exe)
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	exeDir = dashboardRoot(exe, cwd)
+	if *projectsFlag == "" {
+		var local struct {
+			Projects string `json:"projects"`
+		}
+		b, readErr := os.ReadFile(filepath.Join(exeDir, "dashboard.local.json"))
+		if readErr == nil {
+			if err := json.Unmarshal(b, &local); err != nil {
+				log.Fatalf("dashboard.local.json: %v", err)
+			}
+			*projectsFlag = local.Projects
+		} else if !os.IsNotExist(readErr) {
+			log.Fatal(readErr)
+		}
+	}
 	projDir = filepath.Join(exeDir, "projects")
-	_ = os.MkdirAll(projDir, 0o755)
+	if *projectsFlag != "" {
+		path := *projectsFlag
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(exeDir, path)
+		}
+		projDir, err = filepath.Abs(path)
+		if err != nil {
+			log.Fatal(err)
+		}
+		// A typo in an external path must not silently create an empty workspace.
+		if st, statErr := os.Stat(projDir); statErr != nil || !st.IsDir() {
+			log.Fatalf("projects folder does not exist: %s", projDir)
+		}
+	} else if err := os.MkdirAll(projDir, 0o755); err != nil {
+		log.Fatal(err)
+	}
+	logDir = filepath.Join(exeDir, "runtime", "logs")
+	if *logsFlag != "" {
+		logDir, err = filepath.Abs(*logsFlag)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	var problems []string
 	projects, problems = loadProjects()
 
@@ -352,7 +420,7 @@ func main() {
 
 	http.HandleFunc("/api/state", func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
-		var vs []projView
+		vs := make([]projView, 0, len(projects))
 		for _, p := range projects {
 			st, cur, since := state(runs[p.ID])
 			shot := p.Screenshot != "" && fileOK(filepath.Join(p.workDir(), p.Screenshot))
@@ -361,14 +429,14 @@ func main() {
 		}
 		pr := append([]string(nil), problems...)
 		mu.Unlock()
-		jsonOut(w, map[string]any{"projects": vs, "engine": engineInstalled(), "folder": projDir, "problems": pr})
+		jsonOut(w, map[string]any{"projects": vs, "engine": engineInstalled(), "folder": projDir, "logs": logDir, "problems": pr})
 	})
 
 	http.HandleFunc("/api/log", func(w http.ResponseWriter, r *http.Request) {
 		id := r.URL.Query().Get("p")
 		from, _ := strconv.Atoi(r.URL.Query().Get("from"))
 		mu.Lock()
-		var lines []string
+		lines := make([]string, 0)
 		n := 0
 		if ru := runs[id]; ru != nil {
 			n = len(ru.Log)
@@ -528,10 +596,13 @@ func main() {
 	fmt.Println("Dashboard is open in your browser:", url)
 	fmt.Println("Keep this window open. Closing it stops every running project.")
 	fmt.Printf("Projects folder: %s (%d projects)\n", projDir, len(projects))
+	fmt.Printf("Run logs: %s\n", logDir)
 	for _, p := range problems {
 		fmt.Println("  problem:", p)
 	}
-	openPath(url)
+	if !*noBrowser {
+		openPath(url)
+	}
 	log.Fatal(http.Serve(ln, nil))
 }
 
