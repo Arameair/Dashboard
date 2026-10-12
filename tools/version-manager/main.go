@@ -69,7 +69,7 @@ func (m *manager) handler(static string) http.Handler {
   var v Version;if e:=decode(r,&v);e!=nil{bad(w,400,"invalid JSON");return}
   if v.Name==""||v.Channel==""||v.SHA==""||len(v.SHA)<7||len(v.SHA)>64||v.Branch=="" {bad(w,400,"name, channel, branch and commit SHA required");return}
   if e:=validExecutable(v.Executable);e!=nil{bad(w,400,e.Error());return}
-  h:=sha256.Sum256([]byte(v.Executable+"|"+v.SHA));v.ID=hex.EncodeToString(h[:8]);v.Installed=true;v.Runnable=true;v.Protected=false;v.Managed=false
+  h:=sha256.Sum256([]byte(v.Executable+"|"+v.SHA));v.ID=hex.EncodeToString(h[:8]);v.Installed=true;v.Runnable=false;v.Protected=false;v.Managed=false
   m.mu.Lock();defer m.mu.Unlock();if m.find(v.ID)!=nil{bad(w,409,"already registered");return}
   m.catalog.Versions=append(m.catalog.Versions,v);if e:=m.persist();e!=nil{m.catalog.Versions=m.catalog.Versions[:len(m.catalog.Versions)-1];bad(w,500,"catalog save failed");return}
   m.record("INFO","ADD",v.ID,"registered local build without executing");writeJSON(w,201,v)
