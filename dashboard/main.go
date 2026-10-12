@@ -1,4 +1,4 @@
-// TeamsDashboard v5: control several real browsers from one page.
+// Dashboard v5: control several real browsers from one page.
 //
 // Each project is its own Chrome/Edge window with its own profile (so each can
 // stay signed in to a different chat). From the dashboard you can start/stop
@@ -623,7 +623,7 @@ func main() {
 		mux.ServeHTTP(w, r)
 	})
 
-	fmt.Println("Teams Dashboard", version, "->", pageURL)
+	fmt.Println("Dashboard", version, "->", pageURL)
 	fmt.Println("Settings, profiles, logs and saved replies:", dataDir)
 	fmt.Println("Keep this window open while you use the dashboard. Closing it leaves the browsers open;")
 	fmt.Println("the next start reconnects to them.")
