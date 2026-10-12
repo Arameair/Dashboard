@@ -1,0 +1,13 @@
+{
+  "name": "Original · round 2 playwright",
+  "group": "Project 2 · Round 2 Playwright",
+  "order": 2,
+  "about": "Your round 2 playwright main.go, unchanged. The baseline to compare against.",
+  "exe": "round2-original.exe",
+  "screenshot": "../artifacts/playwright-google.png",
+  "actions": [
+    {"label": "▶ Run demo (Google + example.com)", "args": [], "primary": true, "note": "Opens a visible browser. Click Finish when you've seen it."},
+    {"label": "Smoke test (offline)", "args": ["-smoke"]},
+    {"label": "Install engine", "args": ["-install"]}
+  ]
+}

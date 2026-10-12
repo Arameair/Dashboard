@@ -1,0 +1,26 @@
+# Runtime artifacts and generated project state
+projects/managed/
+projects/runs/
+projects/artifacts/
+
+# Built binaries and local caches
+**/*.exe
+**/*.dll
+**/*.log
+**/*.db
+**/*.db-journal
+**/Last Browser
+**/Local State
+**/Default/
+**/Crashpad/
+**/GPUPersistentCache/
+**/ShaderCache/
+**/Safe Browsing/
+**/SegmentationPlatform/
+**/component_crx_cache/
+**/extensions_crx_cache/
+**/first_party_sets.db*
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

@@ -1,0 +1,13 @@
+{
+  "name": "Prototype 1 · clean shutdown",
+  "group": "Project 2 · Round 2 Playwright",
+  "order": 1,
+  "about": "Improved round 2 Playwright. Ctrl+C or closing cleans up Chromium and the temp profile, removes leftovers from old runs, no extra blank tab, step-by-step PASS summary.",
+  "exe": "round2-p1.exe",
+  "screenshot": "../artifacts/playwright-p1-google.png",
+  "actions": [
+    {"label": "▶ Run demo (Google + example.com)", "args": ["-shot", "playwright-p1-google.png"], "primary": true, "note": "Opens a visible browser. Click Finish when you've seen it."},
+    {"label": "Smoke test (offline)", "args": ["-smoke", "-shot", "playwright-p1-google.png"], "note": "Local pages only, closes by itself"},
+    {"label": "Install engine", "args": ["-install"]}
+  ]
+}

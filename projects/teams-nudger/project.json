@@ -1,0 +1,15 @@
+{
+  "name": "Teams nudger (prototype 2)",
+  "group": "Teams · ChatGPT chats",
+  "order": 10,
+  "about": "Keeps the four Teams seat chats moving: every 10 minutes it nudges idle chats and leaves running ones alone. Order: Watch demo → Sign in → Test run → Run.",
+  "exe": "teams-nudger.exe",
+  "actions": [
+    {"label": "Watch demo (logged out)", "args": ["-demo"], "note": "ChatGPT logged out, one test chat"},
+    {"label": "1. Sign in (Google)", "args": ["-login"], "note": "Plain browser window. Sign in, then close the window."},
+    {"label": "Test run (sends nothing)", "args": ["-dry-run", "-once"]},
+    {"label": "▶ Run every 10 min", "args": [], "primary": true},
+    {"label": "Run, skip Seat 01", "args": ["-skip", "01"]},
+    {"label": "Install engine", "args": ["-install"]}
+  ]
+}

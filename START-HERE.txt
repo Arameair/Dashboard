@@ -1,0 +1,32 @@
+DASHBOARD — switch between your Teams projects and run them
+
+1. Extract the zip anywhere (Desktop is fine). Nothing needs to be moved or built.
+2. Double-click  Dashboard.exe . Keep its black window open (closing it stops everything).
+   If "Windows protected your PC" shows: More info > Run anyway. (Same for the project programs.)
+3. First time only: click  Install browser engine  (top bar). Takes a few minutes. All projects share it.
+4. Click a project on the left to switch to it. Each one has its own buttons and live log.
+   Several can run at once; the dot shows each one's state:
+     blue blinking = running    green blinking = waiting for you (click Finish)
+     green = finished OK        red = failed        orange = stopped
+   Finish = clean close (presses Enter for the program). Stop = force close (program + its browser).
+
+WHAT'S IN IT
+   Project 2 · Round 2 Playwright
+     Prototype 1 · clean shutdown     the improved version
+     Original · round 2 playwright    your main.go, unchanged, to compare
+     Use "Smoke test (offline)" for a quick check, "Run demo" for the real Google + example.com run.
+   Teams · ChatGPT chats
+     Teams nudger (prototype 2)       Watch demo → Sign in → Test run → Run every 10 min
+
+ADDING PROJECTS
+   "+ Add project" points the dashboard at a program you already have, e.g.
+     Folder:  C:\Users\dusti\Teams-Browser-Test\prototypes\round2\playwright
+     Program: round2-demo.exe
+   Or drop a folder with a project.json into  projects\  and click Rescan (copy one of the existing ones).
+
+WHERE THINGS GO
+   projects\managed\     the shared browser engine
+   projects\artifacts\   screenshots
+   projects\runs\        browser profiles (your ChatGPT sign-in is kept here)
+   projects\<name>\last-run.log   the last log of each project
+   Never touches git: no commit, push, reset or checkout.
