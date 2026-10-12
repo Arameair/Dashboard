@@ -57,9 +57,9 @@ type run struct {
 	Exit     int       `json:"exit"`
 	Stopped  bool      `json:"stopped"`
 	Log      []string  `json:"-"`
+	LogStart int       `json:"-"` // absolute offset of the first retained log line
 	cmd      *exec.Cmd
 	stdin    io.WriteCloser
-	finished bool
 }
 
 var (
@@ -75,7 +75,10 @@ var (
 func loadProjects() ([]project, []string) {
 	out := make([]project, 0)
 	var problems []string
-	ents, _ := os.ReadDir(projDir)
+	ents, err := os.ReadDir(projDir)
+	if err != nil {
+		return out, []string{"cannot read projects folder: " + err.Error()}
+	}
 	for _, e := range ents {
 		if !e.IsDir() {
 			continue
@@ -157,7 +160,9 @@ func (r *run) add(s string) {
 	line := time.Now().Format("15:04:05") + "  " + s
 	r.Log = append(r.Log, line)
 	if len(r.Log) > 4000 {
-		r.Log = r.Log[len(r.Log)-4000:]
+		dropped := len(r.Log) - 4000
+		r.Log = r.Log[dropped:]
+		r.LogStart += dropped
 	}
 	if waitRe.MatchString(s) {
 		r.Waiting = true
@@ -194,20 +199,31 @@ func start(p project, a action) error {
 	c.Dir = p.workDir()
 	pr, pw := io.Pipe()
 	c.Stdout, c.Stderr = pw, pw
-	in, _ := c.StdinPipe()
+	in, err := c.StdinPipe()
+	if err != nil {
+		_ = pw.Close()
+		_ = pr.Close()
+		mu.Unlock()
+		return fmt.Errorf("cannot open input pipe: %w", err)
+	}
 	r := &run{Action: a.Label + "\x00" + strings.Join(a.Args, "\x01"), Started: time.Now(), Running: true, cmd: c, stdin: in, Exit: -1}
 	r.add(fmt.Sprintf("▶ %s   (%s %s)", a.Label, filepath.Base(exe), strings.Join(a.Args, " ")))
 	runs[p.ID] = r
 	mu.Unlock()
 
 	if err := c.Start(); err != nil {
+		_ = pw.Close()
+		_ = pr.Close()
+		_ = in.Close()
 		mu.Lock()
 		r.add("could not start: " + err.Error())
 		r.Running, r.Exit, r.Ended = false, 127, time.Now()
 		mu.Unlock()
-		return nil
+		return fmt.Errorf("could not start %s: %w", filepath.Base(exe), err)
 	}
+	logDone := make(chan struct{})
 	go func() {
+		defer close(logDone)
 		sc := bufio.NewScanner(pr)
 		sc.Buffer(make([]byte, 64*1024), 1024*1024)
 		for sc.Scan() {
@@ -215,11 +231,18 @@ func start(p project, a action) error {
 			r.add(sc.Text())
 			mu.Unlock()
 		}
+		if err := sc.Err(); err != nil {
+			mu.Lock()
+			r.add("log read error: " + err.Error())
+			mu.Unlock()
+		}
 	}()
 	go func() {
 		err := c.Wait()
-		pw.Close()
-		time.Sleep(150 * time.Millisecond) // let the last lines arrive
+		_ = pw.Close()
+		<-logDone
+		_ = pr.Close()
+		_ = in.Close()
 		code := 0
 		var ee *exec.ExitError
 		if errors.As(err, &ee) {
@@ -289,11 +312,22 @@ func stop(id string) {
 func finish(id string) {
 	mu.Lock()
 	r := runs[id]
-	if r != nil && r.Running && r.stdin != nil {
-		r.add("Finish: pressing Enter for you")
-		_, _ = r.stdin.Write([]byte("\r\n"))
+	if r == nil || !r.Running || !r.Waiting || r.stdin == nil {
+		mu.Unlock()
+		return
 	}
+	r.Waiting = false
+	r.add("Finish: pressing Enter for you")
+	in := r.stdin
 	mu.Unlock()
+	// Writing to a stalled child must never block the global state mutex.
+	go func() {
+		if _, err := in.Write([]byte("\r\n")); err != nil {
+			mu.Lock()
+			r.add("could not send Finish: " + err.Error())
+			mu.Unlock()
+		}
+	}()
 }
 
 // ---------- web ----------
@@ -326,6 +360,22 @@ func state(r *run) (string, string, string) {
 		return "ok", lbl, r.Ended.Format("3:04:05 PM")
 	}
 	return "failed", lbl, r.Ended.Format("3:04:05 PM")
+}
+
+// logSince uses absolute cursors so polling keeps working after the log buffer rolls.
+// A per-run token ensures an old cursor never hides output from a newer run.
+func logSince(r *run, from int, token string) ([]string, int, bool, string) {
+	if r == nil {
+		return []string{}, 0, token != "", ""
+	}
+	runToken := strconv.FormatInt(r.Started.UnixNano(), 10)
+	next := r.LogStart + len(r.Log)
+	reset := token != runToken || from < r.LogStart || from > next
+	if reset {
+		from = r.LogStart
+	}
+	lines := append([]string{}, r.Log[from-r.LogStart:]...)
+	return lines, next, reset, runToken
 }
 
 func jsonOut(w http.ResponseWriter, v any) {
@@ -436,17 +486,9 @@ func main() {
 		id := r.URL.Query().Get("p")
 		from, _ := strconv.Atoi(r.URL.Query().Get("from"))
 		mu.Lock()
-		lines := make([]string, 0)
-		n := 0
-		if ru := runs[id]; ru != nil {
-			n = len(ru.Log)
-			if from < 0 || from > n {
-				from = 0
-			}
-			lines = append(lines, ru.Log[from:]...)
-		}
+		lines, next, reset, runToken := logSince(runs[id], from, r.URL.Query().Get("run"))
 		mu.Unlock()
-		jsonOut(w, map[string]any{"lines": lines, "next": n})
+		jsonOut(w, map[string]any{"lines": lines, "next": next, "reset": reset, "run": runToken})
 	})
 
 	http.HandleFunc("/api/shot", func(w http.ResponseWriter, r *http.Request) {
