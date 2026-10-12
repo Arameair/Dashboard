@@ -13,6 +13,8 @@ node tools/version-manager/ui-fixture/server.mjs
 Open the printed `http://127.0.0.1:<ephemeral-port>/` URL in an **independent test browser**; do not use signed-in Dashboard sessions. Server process starts only when invoked. Stop with Ctrl+C. Optional `ALPHA_FIXTURE_PORT=18994` selects a disposable loopback port.
 
 ### Manual fault injection
+
+Run the server with `ALPHA_FIXTURE_PORT=18994 node tools/version-manager/ui-fixture/server.mjs` (Linux/macOS shell), or substitute the ephemeral port printed by the server in each command. On Windows PowerShell use `$env:ALPHA_FIXTURE_PORT='18994'; node tools/version-manager/ui-fixture/server.mjs`.
 ```sh
 curl -X POST http://127.0.0.1:18994/__fixture/fault -d '{"failLog":true}'
 curl -X POST http://127.0.0.1:18994/__fixture/fault -d '{"failLog":false}'
