@@ -69,3 +69,15 @@ func TestRejectUntrustedHostAndOrigin(t *testing.T) {
   if w.Code!=403{t.Errorf("%s %s got=%d",tc.method,tc.host,w.Code)}
  }
 }
+
+func TestLegacyRunnableCatalogFailsClosedOnReload(t *testing.T) {
+ path:=filepath.Join(t.TempDir(),"catalog.json")
+ legacy:=`{"versions":[{"id":"legacy","name":"Unverified","channel":"Experimental","branch":"test","sha":"abcdef01","executable":"/tmp/fake","installed":true,"runnable":true,"protected":false}],"runningId":"legacy","selectedId":"legacy"}`
+ if err:=os.WriteFile(path,[]byte(legacy),0600);err!=nil{t.Fatal(err)}
+ m,err:=newManager(path);if err!=nil{t.Fatal(err)}
+ if v:=m.find("legacy");v==nil||v.Runnable {t.Fatalf("legacy run approval must expire after reload: %+v",v)}
+ if m.catalog.RunningID!="" || m.status.State!="IDLE" {t.Fatalf("must not claim owned running child after restart: %+v",m.status)}
+ w:=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,httptest.NewRequest("GET","/api/versions",nil))
+ var got Catalog;if err:=json.Unmarshal(w.Body.Bytes(),&got);err!=nil{t.Fatal(err)}
+ if got.Versions[0].Runnable || got.RunningID!=""{t.Fatal("API exposed persisted unverified run state")}
+}
