@@ -20,6 +20,13 @@
 
 Owner → primary assistant → **02 High** for project-wide intake/planning; **01 Instant** for urgent immediate actions. 02 breaks work into separately owned GitHub issues; 03/04 execute after owner-led chat handoff and role ACK. 01 may take a narrowly scoped urgent issue without waiting for broad planning, provided it does not collide with 03/04 files and never changes protected branches. 02 returns the consolidated status, 01 flags blockers that need owner attention.
 
+## Default operator loop — one traffic-light screen
+
+- **01 Instant** is the owner's compact **traffic-light reporter**. At every owner/default nudge, check verified GitHub progress and reply with 🟢 **NUDGE NOW**, 🔴 **WAIT / NO NUDGE**, or ⚪ **UNKNOWN** for **02, 03 and 04**, plus **SEND TO**, **COPY/PASTE NUDGE**, and **NEXT**. See [DEFAULT-NUDGE.md](DEFAULT-NUDGE.md).
+- **02 High** is the **work engine and operating go-between**: always select the next useful, authorized planning/setup/issue/review/integration action during a turn. Maintain READY tasks and unblock 03/04. This does not mean autonomous background work.
+- **03/04 Medium** execute only assigned, ACKed, non-overlapping work. If blocked, they tell 02 through GitHub; 01's report reflects actual evidence.
+- **Operating pattern**: owner checks 01; 01 says who needs a nudge and provides the exact message; owner pastes it to the indicated chat(s). 02 keeps the full picture. No need to ask each specialist for status if GitHub evidence is current.
+
 ## Enrollment order
 
 1. Owner opens/designates **four separate ChatGPT conversations** and selects Instant / High / Medium / Medium. A GitHub file does not create a ChatGPT conversation.
