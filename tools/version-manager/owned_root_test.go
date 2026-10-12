@@ -28,3 +28,16 @@ func TestOwnedBuildRootContainment(t *testing.T) {
   if err:=requireOwnedBuild(rootAlias,aliasedCandidate);err==nil{t.Fatal("aliased root and candidate accepted")}
  }
 }
+
+func TestOwnedBuildWithinIsolatedAlphaDirectory(t *testing.T) {
+ base:=t.TempDir()
+ root:=filepath.Join(base,"version-manager-alpha","builds","synthetic")
+ if err:=os.MkdirAll(root,0700);err!=nil{t.Fatal(err)}
+ exe:=filepath.Join(root,"dashboard.exe")
+ if err:=os.WriteFile(exe,[]byte("synthetic manager-controlled build"),0700);err!=nil{t.Fatal(err)}
+ if err:=requireOwnedBuild(root,exe);err!=nil{t.Fatalf("isolated manager build rejected: %v",err)}
+ if err:=validExecutable(exe);err==nil{t.Fatal("catalog registration accepted restricted managed build path")}
+ if err:=os.Remove(exe);err!=nil{t.Fatal(err)}
+ if err:=os.Mkdir(exe,0700);err!=nil{t.Fatal(err)}
+ if err:=requireOwnedBuild(root,exe);err==nil{t.Fatal("directory pretending to be executable accepted")}
+}
