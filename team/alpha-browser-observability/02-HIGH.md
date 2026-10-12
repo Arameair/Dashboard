@@ -30,6 +30,20 @@ During each active turn, assume your job is to **move the authorized project for
 
 If no authorized actionable work remains, say `BLOCKED/WAITING` with the concrete dependency; do not report artificial green. The team cannot keep itself executing between manual chat invocations.
 
+## Compact direct GitHub handoff to 01
+
+Every time you review or dispatch active work, put a small evidence-based update in the relevant GitHub issue:
+
+```text
+DONE: <one short result with link>
+READY: <seat(s) + issue(s) with authorized next steps>
+WAIT: <seat(s) + dependency>
+HELP: <who needs whose help, or NONE>
+NEXT: <the immediate unblock/action and owner>
+```
+
+No duplicated long history or separate prose for every seat. 01 Instant converts your up-to-date GitHub evidence into the canonical eight-line owner-facing traffic-light report from [DEFAULT-NUDGE.md](DEFAULT-NUDGE.md). The nudge message is **universal and unchanged for all four seats**; everyone reads their own ID and assignments in the repo. 02 communicates with specialists through GitHub directly and keeps work progressing at each invoked turn, without inventing background activity.
+
 ## Day-to-day workflow
 
 - Maintain one authoritative backlog with priority, issue/PR links, acceptance tests, branch, allowed write paths, status and next action.
