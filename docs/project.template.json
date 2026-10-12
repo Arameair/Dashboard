@@ -1,0 +1,27 @@
+{
+  "name": "Prototype N · short title",
+  "group": "Project · topic",
+  "order": 100,
+  "about": "What this prototype does and how it differs from the original.",
+  "exe": "your-program.exe",
+  "dir": "",
+  "screenshot": "",
+  "actions": [
+    {
+      "label": "Smoke test (offline)",
+      "args": ["-smoke"],
+      "note": "Fast check. Prefer something that closes by itself."
+    },
+    {
+      "label": "▶ Run",
+      "args": [],
+      "primary": true,
+      "note": "Real path. Click Finish if it waits for Enter; Stop to force close."
+    },
+    {
+      "label": "Install engine",
+      "args": ["-install"],
+      "note": "Only if this program shares the Playwright engine. Omit if not needed."
+    }
+  ]
+}
