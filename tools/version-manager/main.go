@@ -58,7 +58,9 @@ func validChannel(v string) bool {return v=="Main" || v=="Alpha" || v=="Experime
 func validExecutable(p string) error {
  if p=="" || !filepath.IsAbs(p){return errors.New("absolute executable path required")}
  clean:=filepath.Clean(p)
- s,err:=os.Stat(clean);if err!=nil{return fmt.Errorf("executable unavailable: %w",err)}
+ canonical,err:=filepath.EvalSymlinks(clean);if err!=nil{return fmt.Errorf("executable unavailable: %w",err)}
+ if canonical!=clean{return errors.New("symlinked executable path requires separate explicit review")}
+ s,err:=os.Stat(canonical);if err!=nil{return fmt.Errorf("executable unavailable: %w",err)}
  if s.IsDir()||s.Mode()&0111==0 && filepath.Ext(strings.ToLower(clean))!=".exe" {return errors.New("not an executable file")}
  low:=strings.ToLower(clean)
  for _,part:=range []string{"teamsdashboard\\v5","\\windows\\","/etc/","/proc/","/sys/","/dev/","version-manager-alpha"} {if strings.Contains(low,part){return errors.New("restricted executable location")}}
