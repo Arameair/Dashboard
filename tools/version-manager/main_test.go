@@ -98,3 +98,20 @@ func TestRejectSymlinkedExecutableRegistration(t *testing.T) {
  if err:=validExecutable(link);err==nil{t.Fatal("symlink executable path accepted without explicit review")}
  if err:=validExecutable(target);err!=nil{t.Fatalf("direct synthetic executable rejected: %v",err)}
 }
+
+func TestApprovalEndpointsRefuseCatalogOnlyVersions(t *testing.T) {
+ m,err:=newManager(filepath.Join(t.TempDir(),"catalog.json"));if err!=nil{t.Fatal(err)}
+ h:=m.handler(t.TempDir())
+ for _,tc:=range []struct{method,url,body string;want int}{
+  {"GET","/api/approval-preview?id=alpha-source","",422},
+  {"GET","/api/approval-preview","",400},
+  {"POST","/api/approvals",`{"id":"alpha-source","challenge":"any","confirmedDigest":"any"}`,403},
+ } {
+  r:=httptest.NewRequest(tc.method,tc.url,strings.NewReader(tc.body))
+  r.Host="127.0.0.1:18776"
+  w:=httptest.NewRecorder();h.ServeHTTP(w,r)
+  if w.Code!=tc.want{t.Fatalf("%s %s returned %d, want %d: %s",tc.method,tc.url,w.Code,tc.want,w.Body.String())}
+  if strings.Contains(w.Body.String(),`"approved":true`) {t.Fatal("approval succeeded without verified stage")}
+ }
+ if m.find("alpha-source").Runnable {t.Fatal("approval changed catalog runnable state")}
+}
