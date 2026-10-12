@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dashboard Alpha — Version Manager</title><link rel="stylesheet" href="/styles.css"></head>
+<body><header><div><p class="eyebrow">Isolated Alpha / Version Manager</p><h1>Dashboard versions</h1><p>Register and test isolated Dashboard builds. No in-place updates.</p></div><div id="connection" role="status" aria-live="polite">Connecting…</div></header>
+<main><section class="panel"><h2>Find a version</h2><label for="search">Search by name, channel, branch or SHA</label><input id="search" type="search" placeholder="Search available versions…">
+<div id="catalog" class="catalog" role="listbox" aria-label="Dashboard versions" tabindex="0"></div><p id="empty" class="muted" hidden>No matching versions.</p></section>
+<section class="panel"><h2>Selected / running</h2><div class="status-grid"><div><small>Selected</small><strong id="selected">None</strong></div><div><small>Running</small><strong id="running">None</strong></div><div><small>State</small><strong id="state">Unknown</strong></div><div><small>Process / Port</small><strong id="process">—</strong></div></div>
+<p id="status-message" role="status" aria-live="polite"></p><p id="error" role="alert" hidden></p>
+<div class="actions"><button id="launch" disabled>Launch selected</button><button id="stop" disabled>Stop</button><button id="rollback" disabled>Rollback to last known good</button><button id="remove" disabled>Remove selected…</button><button id="reload">Refresh</button></div></section>
+<section class="panel"><h2>Add Version</h2><p class="muted">Register an existing approved local executable. Registration never downloads or launches it.</p>
+<form id="add-form"><div class="form-grid"><label>Display name<input name="name" required maxlength="100"></label><label>Channel<select name="channel"><option>Main</option><option>Alpha</option><option>Experimental</option></select></label><label>Branch / ref<input name="branch" required></label><label>Commit SHA<input name="sha" required pattern="[0-9a-fA-F]{7,40}" title="7–40 hexadecimal characters"></label><label class="wide">Approved local executable path<input name="executable" required></label></div><button type="submit">Add Version</button></form></section>
+<section class="panel"><div class="actions" style="justify-content:space-between"><h2>Diagnostic events</h2><button id="clear-log">Clear displayed events</button></div><p class="muted">Metadata only. No chat content, credentials, or full private URLs.</p><ol id="events" class="events" aria-live="polite"></ol></section>
+</main><footer>Only an isolated, verified installed build is runnable. Removing a catalog entry does not delete files.</footer>
+<script src="/app.js" defer></script></body></html>

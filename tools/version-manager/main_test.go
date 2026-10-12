@@ -1,0 +1,144 @@
+package main
+
+import (
+ "encoding/json"
+ "net/http/httptest"
+ "os"
+ "path/filepath"
+ "strings"
+ "testing"
+)
+
+func TestCatalogOfflineAndProtected(t *testing.T) {
+ m,err:=newManager(filepath.Join(t.TempDir(),"catalog.json"));if err!=nil{t.Fatal(err)}
+ if len(m.catalog.Versions)<4{t.Fatalf("want four fixture sources, got %d",len(m.catalog.Versions))}
+ for _,v:=range m.catalog.Versions {if !v.Protected||v.Runnable||v.Installed{t.Fatalf("source must be protected and not runnable: %+v",v)}}
+ w:=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,httptest.NewRequest("DELETE","/api/versions/main-source",nil))
+ if w.Code!=409{t.Fatalf("protected delete returned %d",w.Code)}
+}
+func TestRegisterUnregisterLeavesExecutableIntact(t *testing.T){
+ dir:=t.TempDir();exe:=filepath.Join(dir,"fixture.exe");if err:=os.WriteFile(exe,[]byte("fixture only"),0700);err!=nil{t.Fatal(err)}
+ path:=filepath.Join(dir,"catalog.json");m,_:=newManager(path)
+ body:=`{"name":"fixture","channel":"Experimental","branch":"test","sha":"abcdef0123","executable":"`+filepath.ToSlash(exe)+`"}`
+ w:=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,httptest.NewRequest("POST","/api/versions",strings.NewReader(body)))
+ if w.Code!=201{t.Fatalf("register status=%d body=%s",w.Code,w.Body.String())}
+ var v Version;if err:=json.Unmarshal(w.Body.Bytes(),&v);err!=nil{t.Fatal(err)}
+ if v.ID==""||v.Runnable||!v.Installed{t.Fatalf("unverified registered record must be non-runnable: %+v",v)}
+ loaded,err:=newManager(path);if err!=nil||loaded.find(v.ID)==nil{t.Fatalf("catalog not durable: %v",err)}
+ w=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,httptest.NewRequest("DELETE","/api/versions/"+v.ID,nil))
+ if w.Code!=200{t.Fatalf("unregister status=%d",w.Code)}
+ if _,err:=os.Stat(exe);err!=nil{t.Fatalf("unregister must not delete executable: %v",err)}
+}
+func TestCorruptManifestNeverOverwritten(t *testing.T) {
+ dir:=t.TempDir();path:=filepath.Join(dir,"catalog.json");before:=[]byte("{broken")
+ if err:=os.WriteFile(path,before,0600);err!=nil{t.Fatal(err)}
+ if _,err:=newManager(path);err==nil{t.Fatal("corrupt manifest must fail closed")}
+ after,_:=os.ReadFile(path);if string(after)!=string(before){t.Fatal("corrupt manifest modified")}
+}
+func TestUnsafePathAndLaunchFailClosed(t *testing.T){
+ if validExecutable("relative.exe")==nil{t.Fatal("relative executable accepted")}
+ m,_:=newManager(filepath.Join(t.TempDir(),"catalog.json"))
+ for _,action:=range []string{"launch","stop","rollback"}{
+  w:=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,httptest.NewRequest("POST","/api/"+action,nil))
+  if w.Code!=501{t.Fatalf("%s unexpectedly actionable: %d",action,w.Code)}
+ }
+}
+
+func TestAbsoluteLogCursorAfterRollover(t *testing.T) {
+ m,_:=newManager(filepath.Join(t.TempDir(),"catalog.json"))
+ for i:=0;i<510;i++ {m.record("INFO","TEST","","synthetic event")}
+ if m.eventStart!=10 {t.Fatalf("start=%d want=10",m.eventStart)}
+ w:=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,httptest.NewRequest("GET","/api/log?cursor=0",nil))
+ var resp struct{Events []Event `json:"events"`;Next int `json:"next"`}
+ if err:=json.Unmarshal(w.Body.Bytes(),&resp);err!=nil{t.Fatal(err)}
+ if len(resp.Events)!=500||resp.Next!=510{t.Fatalf("events=%d next=%d",len(resp.Events),resp.Next)}
+ m.record("INFO","TEST","","one more")
+ w=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,httptest.NewRequest("GET","/api/log?cursor=510",nil))
+ if err:=json.Unmarshal(w.Body.Bytes(),&resp);err!=nil{t.Fatal(err)}
+ if len(resp.Events)!=1||resp.Next!=511{t.Fatalf("events=%d next=%d",len(resp.Events),resp.Next)}
+}
+func TestRejectUntrustedHostAndOrigin(t *testing.T) {
+ m,_:=newManager(filepath.Join(t.TempDir(),"catalog.json"))
+ for _,tc:=range []struct{method,path,host,origin string}{
+  {"GET","/api/versions","untrusted.invalid:18776",""},
+  {"POST","/api/select","127.0.0.1:18776","https://untrusted.invalid"},
+ }{
+  r:=httptest.NewRequest(tc.method,tc.path,nil);r.Host=tc.host
+  if tc.origin!=""{r.Header.Set("Origin",tc.origin)}
+  w:=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,r)
+  if w.Code!=403{t.Errorf("%s %s got=%d",tc.method,tc.host,w.Code)}
+ }
+}
+
+func TestLegacyRunnableCatalogFailsClosedOnReload(t *testing.T) {
+ path:=filepath.Join(t.TempDir(),"catalog.json")
+ legacy:=`{"versions":[{"id":"legacy","name":"Unverified","channel":"Experimental","branch":"test","sha":"abcdef01","executable":"/tmp/fake","installed":true,"runnable":true,"protected":false}],"runningId":"legacy","selectedId":"legacy"}`
+ if err:=os.WriteFile(path,[]byte(legacy),0600);err!=nil{t.Fatal(err)}
+ m,err:=newManager(path);if err!=nil{t.Fatal(err)}
+ if v:=m.find("legacy");v==nil||v.Runnable {t.Fatalf("legacy run approval must expire after reload: %+v",v)}
+ if m.catalog.RunningID!="" || m.status.State!="IDLE" {t.Fatalf("must not claim owned running child after restart: %+v",m.status)}
+ w:=httptest.NewRecorder();m.handler(t.TempDir()).ServeHTTP(w,httptest.NewRequest("GET","/api/versions",nil))
+ var got Catalog;if err:=json.Unmarshal(w.Body.Bytes(),&got);err!=nil{t.Fatal(err)}
+ if got.Versions[0].Runnable || got.RunningID!=""{t.Fatal("API exposed persisted unverified run state")}
+}
+
+func TestCatalogInputIdentityValidation(t *testing.T) {
+ for _,sha:=range []string{"abcdef0","0123456789abcdefABCDEF"} {if !validCommitSHA(sha){t.Fatalf("rejected valid SHA %q",sha)}}
+ for _,sha:=range []string{"abcd","not-a-sha","0123456G"," abcdef0"} {if validCommitSHA(sha){t.Fatalf("accepted malformed SHA %q",sha)}}
+ for _,ch:=range []string{"Main","Alpha","Experimental"} {if !validChannel(ch){t.Fatalf("rejected channel %q",ch)}}
+ for _,ch:=range []string{"","main","Experimental<script>","Other"} {if validChannel(ch){t.Fatalf("accepted channel %q",ch)}}
+}
+
+func TestRejectSymlinkedExecutableRegistration(t *testing.T) {
+ dir:=t.TempDir()
+ target:=filepath.Join(dir,"fixture.exe")
+ if err:=os.WriteFile(target,[]byte("synthetic"),0700);err!=nil{t.Fatal(err)}
+ link:=filepath.Join(dir,"alias.exe")
+ if err:=os.Symlink(target,link);err!=nil{t.Skipf("symlink unavailable: %v",err)}
+ if err:=validExecutable(link);err==nil{t.Fatal("symlink executable path accepted without explicit review")}
+ if err:=validExecutable(target);err!=nil{t.Fatalf("direct synthetic executable rejected: %v",err)}
+}
+
+func TestApprovalEndpointsRefuseCatalogOnlyVersions(t *testing.T) {
+ m,err:=newManager(filepath.Join(t.TempDir(),"catalog.json"));if err!=nil{t.Fatal(err)}
+ h:=m.handler(t.TempDir())
+ for _,tc:=range []struct{method,url,body string;want int}{
+  {"GET","/api/approval-preview?id=alpha-source","",422},
+  {"GET","/api/approval-preview?id=unknown-build","",404},
+  {"GET","/api/approval-preview","",400},
+  {"POST","/api/approvals",`{"id":"alpha-source","challenge":"any","confirmedDigest":"any"}`,403},
+ } {
+  r:=httptest.NewRequest(tc.method,tc.url,strings.NewReader(tc.body))
+  r.Host="127.0.0.1:18776"
+  w:=httptest.NewRecorder();h.ServeHTTP(w,r)
+  if w.Code!=tc.want{t.Fatalf("%s %s returned %d, want %d: %s",tc.method,tc.url,w.Code,tc.want,w.Body.String())}
+  if strings.Contains(w.Body.String(),`"approved":true`) {t.Fatal("approval succeeded without verified stage")}
+ }
+ if m.find("alpha-source").Runnable {t.Fatal("approval changed catalog runnable state")}
+}
+
+func TestApprovalRoutesRejectCrossOriginAndUntrustedHost(t *testing.T) {
+ m,err:=newManager(filepath.Join(t.TempDir(),"catalog.json"));if err!=nil{t.Fatal(err)}
+ h:=m.handler(t.TempDir())
+ for _,tc:=range []struct{method,url,host,origin string}{
+  {"GET","/api/approval-preview?id=alpha-source","outside.example",""},
+  {"POST","/api/approvals","127.0.0.1:18776","http://outside.example"},
+  {"POST","/api/approvals","outside.example",""},
+ } {
+  r:=httptest.NewRequest(tc.method,tc.url,strings.NewReader(`{"id":"alpha-source","challenge":"untrusted","confirmedDigest":"untrusted"}`))
+  r.Host=tc.host
+  if tc.origin!=""{r.Header.Set("Origin",tc.origin)}
+  w:=httptest.NewRecorder();h.ServeHTTP(w,r)
+  if w.Code!=403{t.Fatalf("%s %s host=%s origin=%s status=%d, expected 403",tc.method,tc.url,tc.host,tc.origin,w.Code)}
+  if strings.Contains(w.Body.String(),`"approved":true`){t.Fatal("untrusted request approved")}
+ }
+ if m.find("alpha-source").Runnable{t.Fatal("malicious approval request changed version")}
+}
+
+func TestRegisteredExecutableMustBeRegularFile(t *testing.T) {
+ dir:=t.TempDir()
+ if err:=validExecutable(dir);err==nil{t.Fatal("directory accepted as executable")}
+ exe:=filepath.Join(dir,"fixture.exe")
+ if err:=os.WriteFile(exe,[]byte("synthetic executable"),0700);err!=nil{t.Fatal(err)}
+ if err:=validExecutable(exe);err!=nil{t.Fatalf("ordinary synthetic file rejected: %v",err)}
+}
