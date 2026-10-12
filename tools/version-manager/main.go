@@ -34,6 +34,9 @@ func newManager(path string) (*manager,error) {
    {ID:"experimental-next",Name:"Experimental next (source)",Channel:"Experimental",Protected:true},
   }
  }
+ // A persisted catalog is untrusted after restart: registration is not runtime approval.
+ for i:=range m.catalog.Versions {m.catalog.Versions[i].Runnable=false}
+ m.catalog.RunningID=""
  m.status.SelectedID=m.catalog.SelectedID
  return m,nil
 }
