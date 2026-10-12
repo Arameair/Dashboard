@@ -81,3 +81,10 @@ func TestLegacyRunnableCatalogFailsClosedOnReload(t *testing.T) {
  var got Catalog;if err:=json.Unmarshal(w.Body.Bytes(),&got);err!=nil{t.Fatal(err)}
  if got.Versions[0].Runnable || got.RunningID!=""{t.Fatal("API exposed persisted unverified run state")}
 }
+
+func TestCatalogInputIdentityValidation(t *testing.T) {
+ for _,sha:=range []string{"abcdef0","0123456789abcdefABCDEF"} {if !validCommitSHA(sha){t.Fatalf("rejected valid SHA %q",sha)}}
+ for _,sha:=range []string{"abcd","not-a-sha","0123456G"," abcdef0"} {if validCommitSHA(sha){t.Fatalf("accepted malformed SHA %q",sha)}}
+ for _,ch:=range []string{"Main","Alpha","Experimental"} {if !validChannel(ch){t.Fatalf("rejected channel %q",ch)}}
+ for _,ch:=range []string{"","main","Experimental<script>","Other"} {if validChannel(ch){t.Fatalf("accepted channel %q",ch)}}
+}
