@@ -2,7 +2,7 @@ package main
 
 const page = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Dashboard</title>
+<title>Dashboard — Prototype</title>
 <style>
 :root{--bg:#f3f2ee;--panel:#fff;--ink:#1c1c1a;--mute:#6b6a65;--line:#dedcd5;--acc:#1f6f43;--warn:#b7791f;--bad:#b3261e;--log:#14171a;--logink:#d9dee3}
 @media (prefers-color-scheme:dark){:root{--bg:#17181a;--panel:#212326;--ink:#ecebe7;--mute:#9b9a95;--line:#34363a;--log:#0d0f11}}
@@ -10,7 +10,7 @@ const page = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 html,body{height:100%}
 body{margin:0;font:15px/1.4 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--ink);min-height:100%;display:flex;flex-direction:column}
 header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
-header h1{font-size:17px;margin:0 12px 0 0}
+header h1{font-size:17px;margin:0 12px 0 0}.prototype-tag{display:inline-block;font:700 10px/1.5 system-ui,Segoe UI,sans-serif;letter-spacing:.08em;border:1px solid var(--acc);border-radius:4px;color:var(--acc);padding:1px 5px;margin-left:8px;vertical-align:middle}
 .workspace-status{font-size:13px;color:var(--mute)}
 .dashboard-tools{position:relative}
 .dashboard-tools summary{cursor:pointer;font-size:14px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;list-style:none}
@@ -58,7 +58,7 @@ dialog input{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
 @media (max-width:760px){body{height:auto}.wrap{display:block}main{display:flex;width:100%}main{overflow:visible}pre{min-height:260px}.project-sidebar{width:auto;max-height:38vh;border-right:0;border-bottom:1px solid var(--line)}.project-heading{flex-wrap:wrap}.settings-panel{position:fixed;left:12px;right:12px;top:70px;width:auto}}
 </style></head><body>
 <header>
- <h1>Dashboard</h1>
+ <h1>Dashboard <span class="prototype-tag">PROTOTYPE</span></h1>
  <span id="workspace-status" class="workspace-status">Connecting…</span>
  <span class="sp"></span>
  <details class="dashboard-tools"><summary>Dashboard settings</summary><div class="settings-panel">
@@ -90,7 +90,7 @@ dialog input{width:100%;font:inherit;padding:8px;border:1px solid var(--line);bo
  <div class="bar"><button class="pri" value="ok" id="fok">Add</button><button value="cancel" formnovalidate>Cancel</button></div>
 </form></dialog>
 <script>
-let S={projects:[]},sel=null,next=0,logFor=null;
+let S={projects:[]},sel=null,next=0,logFor=null,logRun='',logSerial=0,logBusy=false;
 try{sel=localStorage.getItem('sel')}catch(e){}
 const $=id=>document.getElementById(id);
 async function post(u){const r=await fetch(u,{method:'POST'});if(!r.ok){alert(await r.text());}refresh();return r}
@@ -104,7 +104,9 @@ function renderNav(){
  }
  if(!S.projects.length)h='<p class="about" style="padding:8px">No projects found in '+esc(S.folder)+'.</p>';
  if(S.problems&&S.problems.length)h+='<div class="problems">'+S.problems.map(esc).join('<br>')+'</div>';
- $('nav').innerHTML=h;
+ const nav=$('nav');
+ if(nav.innerHTML===h)return; // avoid rebuilding identical navigation on every poll
+ nav.innerHTML=h;
  for(const el of document.querySelectorAll('.item'))el.onclick=()=>{sel=el.dataset.id;try{localStorage.setItem('sel',sel)}catch(e){};renderNav();renderMain(true)};
 }
 function cur(){return S.projects.find(p=>p.ID===sel)}
@@ -120,7 +122,7 @@ function renderMain(fresh){
   h+='<span class="sp"></span><button class="fin" id="fin" title="Presses Enter in the program: a clean close">✔ Finish</button><button class="stop" id="stop">■ Stop</button></div>';
   h+='<section class="run-output" aria-label="Run output"><div class="bar"><h3>Run output</h3><span class="sp"></span><span class="status" id="st"></span></div><pre id="log" aria-label="Project log"></pre><div class="shot" id="shot"></div></section>';
   h+='<details class="project-details"><summary>Project details</summary><dl><dt>Folder</dt><dd>'+esc(p.Folder)+'</dd><dt>Program</dt><dd>'+esc(p.Exe)+'</dd><dt>Run logs</dt><dd>'+esc(S.logs||'runtime/logs')+'</dd></dl></details>';
-  $('main').innerHTML=h;logFor=p.ID;next=0;
+  $('main').innerHTML=h;logFor=p.ID;next=0;logRun='';logSerial++;
   for(const b of document.querySelectorAll('#acts [data-a]'))b.onclick=()=>post('/api/run?p='+encodeURIComponent(p.ID)+'&a='+b.dataset.a);
   $('fin').onclick=()=>post('/api/finish?p='+encodeURIComponent(p.ID));
   $('stop').onclick=()=>post('/api/stop?p='+encodeURIComponent(p.ID));
@@ -135,13 +137,19 @@ function renderMain(fresh){
  if(sh.dataset.v!==want+p.State){sh.dataset.v=want+p.State;sh.innerHTML=p.HasShot?'<div class="about" style="font-size:13px">Latest screenshot</div><img src="/api/shot?p='+encodeURIComponent(p.ID)+'&t='+Date.now()+'">':''}
 }
 async function pollLog(){
- if(!sel)return;const id=sel;
- try{const r=await fetch('/api/log?p='+encodeURIComponent(id)+'&from='+next);const j=await r.json();
-  if(id!==logFor)return;const l=$('log');if(!l)return;
-  if(j.next<next){l.textContent='';next=0;return pollLog()}
-  if(j.lines.length){const end=l.scrollTop+l.clientHeight>=l.scrollHeight-30;l.textContent+=j.lines.join('\n')+'\n';if(end)l.scrollTop=l.scrollHeight}
-  next=j.next;
- }catch(e){}
+ if(!sel||logBusy)return;
+ const id=sel,serial=logSerial,from=next,run=logRun;
+ logBusy=true;
+ try{
+  const r=await fetch('/api/log?p='+encodeURIComponent(id)+'&from='+from+'&run='+encodeURIComponent(run));
+  if(!r.ok)throw new Error('log request failed');
+  const j=await r.json();
+  if(id!==logFor||serial!==logSerial)return;
+  const l=$('log');if(!l)return;
+  if(j.reset)l.textContent='';
+  if(j.lines.length){const end=l.scrollTop+l.clientHeight>=l.scrollHeight-30;l.textContent+=j.lines.join('\n')+'\n';if(end||j.reset)l.scrollTop=l.scrollHeight}
+  next=j.next;logRun=j.run;
+ }catch(e){}finally{logBusy=false}
 }
 async function refresh(){
  try{const r=await fetch('/api/state');S=await r.json()}catch(e){$('eng').textContent='Dashboard closed: reopen Dashboard.exe';$('eng').className='pill no';return}
