@@ -16,6 +16,7 @@ func requireOwnedBuild(root, candidate string) error {
  }
  canonicalRoot, err := filepath.EvalSymlinks(filepath.Clean(root))
  if err != nil { return fmt.Errorf("managed build root unavailable: %w",err) }
+ if canonicalRoot!=filepath.Clean(root){return errors.New("managed build root is an alias")}
  info,err:=os.Stat(canonicalRoot)
  if err!=nil || !info.IsDir(){return errors.New("managed build root must be an existing directory")}
  canonicalFile,err:=filepath.EvalSymlinks(filepath.Clean(candidate))
