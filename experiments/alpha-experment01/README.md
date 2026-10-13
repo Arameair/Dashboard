@@ -1,5 +1,7 @@
 # alpha-experment01 — runnable project hub
 
+**Source rule: Only the current `alpha` branch of each GitHub repository is used as the build input.** The experiment itself is a child branch of Dashboard `alpha`.
+
 This experiment adds a **real, owner-triggered Alpha process runner** to the Netflix-style project cards. It remains on a dedicated experiment branch, without altering the normal Dashboard Alpha.
 
 ## Start on Windows
@@ -11,7 +13,7 @@ Use **separate local clones** (do not replace existing installs or switch an in-
 ```powershell
 Set-Location C:\Dev\Projects
 # Only when these folders do not already exist:
-git clone --branch experiment/alpha-v5-owner-smoke-20261013 --single-branch https://github.com/Arameair/Dashboard.git Dashboard-Alpha-Owner-Test
+git clone --branch alpha --single-branch https://github.com/Arameair/Dashboard.git Dashboard-Alpha
 git clone --branch alpha --single-branch https://github.com/Arameair/Teams.git Teams-Alpha
 
 # Clone this prototype once, or git pull --ff-only if already cloned:
@@ -26,7 +28,7 @@ Open http://127.0.0.1:18999/. For an existing clean local prototype clone: `git 
 
 | Project | Required checkout | Branch | Isolated test URL |
 | --- | --- | --- | --- |
-| Dashboard | `C:\Dev\Projects\Dashboard-Alpha-Owner-Test` | `experiment/alpha-v5-owner-smoke-20261013` | http://127.0.0.1:18877/ |
+| Dashboard | `C:\Dev\Projects\Dashboard-Alpha` | `alpha` | http://127.0.0.1:18877/ |
 | Teams | `C:\Dev\Projects\Teams-Alpha` | `alpha` | http://127.0.0.1:18998/ |
 
 Click project → **Start Alpha**. The backend verifies the local Git branch and repository origin, builds the selected Go source into the ProjectHub experiment's own ignored `runtime/alpha-experment01/bin` folder, and launches a new process with isolated `runtime/alpha-experment01/data/<project>` state. No automatic Git checkout/pull or module download; `GOPROXY=off` and `GOTOOLCHAIN=local` are enforced for builds. On Teams, missing cached Go dependencies cause a visible build failure. The first full Teams browser-run may still require network and Playwright provisioning after you explicitly launch it.
@@ -39,7 +41,7 @@ The existing owner Alpha on port 18777 is separate and remains untouched.
 
 ## Important limitations
 
-- Status and version correspond to **local checked-out sources**, not the latest remote GitHub commit. Branch verification does not download code.
+- Status and version correspond to **local checked-out sources**, not necessarily the latest remote GitHub `alpha` commit. Update Alpha source checkouts deliberately with `git pull --ff-only` only after stopping their managed instances. Branch verification does not download code.
 - There is no arbitrary-repo runner, version selector, rollback, or branch switching. Only the two explicitly configured repos/branches are supported.
 - The hub does not automatically send ChatGPT messages or operate logged-in personal browsers.
 - If the app is running outside ProjectHub, it will not be adopted, stopped, or represented as its managed process.
