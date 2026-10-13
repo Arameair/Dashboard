@@ -1,6 +1,8 @@
 # Dashboard Alpha — isolated owner smoke test (2026-10-13)
 
-**Status: CANDIDATE FOR OWNER WINDOWS SMOKE TEST — NOT WINDOWS-VERIFIED.**
+**Status: CI-VERIFIED WINDOWS TEST CANDIDATE — OWNER-PC SMOKE TEST STILL NOT RUN.**
+
+[Windows foundation CI passed](https://github.com/Arameair/Dashboard/actions/runs/38355992136) at commit `8383f816ac0cd8e6bc972edc7eb1295d16554b74`: Go tests/vet/vendor build, isolated local HTTP page, inert project defaults and **real Chrome/Edge browser Start/Stop**. This was a GitHub-hosted Windows runner, **not the owner's computer**; the actual double-click entry point, live preview/log interaction and local profile preservation remain to be observed.
 
 This branch is based on Dashboard v5 `main` commit `e4bfa2636acdbe1b1bbf7b2c1a988ad62ca8c59c`. It is **not** the unfinished A4 Version Manager, **not** a promoted `alpha` or `stable` build, and **not** the future four-prototype gallery. Its purpose is to get one existing real Dashboard browser/project workspace running in a clean isolated copy. No code on `main` or `stable` was changed.
 
@@ -33,12 +35,12 @@ This branch is based on Dashboard v5 `main` commit `e4bfa2636acdbe1b1bbf7b2c1a98
 | Check | Current status | Owner PASS criteria |
 | --- | --- | --- |
 | Source branch, entry scripts | PASS — GitHub readback only | Candidate scripts exist at recorded ref |
-| Go 1.24 vendor test / vet / build on Windows | NOT RUN | Launcher reports no errors |
-| Start, exact port 18777 and page | NOT RUN | Correct browser page opens at the dedicated URL |
-| Isolated data and profiles | NOT RUN | New data appears only in test runtime folder |
-| Project loaded, default stopped / no auto nudge | NOT RUN | Sample listed and initially stopped |
-| Start one browser, real live preview, logs | NOT RUN | Window, preview and log correspond to the sample |
-| Stop / restart only the sample | NOT RUN | Test browser closes/reopens as expected |
+| Go 1.24 vendor test / vet / build on Windows | PASS — hosted Windows CI | Launcher reports no errors on owner's PC |
+| HTTP startup, UI and isolated fixture | PASS — hosted Windows CI, ephemeral port | Owner sees page at dedicated port 18777 |
+| Isolated configuration/data directory | PASS — hosted CI; owner profiles NOT RUN | New data appears only in test runtime folder |
+| Project loaded, default stopped / no auto nudge | PASS — hosted Windows CI | Sample listed and initially stopped on owner's PC |
+| Start/Stop one Chrome/Edge browser | PASS — hosted Windows CI; live preview/logs NOT RUN | Window, preview and log correspond to the sample on owner's PC |
+| Restart only the sample | NOT RUN | Test browser closes/reopens as expected |
 | Existing Dashboard and sign-ins unaffected | NOT RUN | Existing install remains usable, data/profile untouched |
 | Prototype comparison/promotion / worker automation | NOT IMPLEMENTED | Out of scope of this smoke test |
 
