@@ -1,0 +1,25 @@
+name: Dashboard Alpha Foundation (isolated Windows)
+on:
+  push:
+    branches:
+      - experiment/alpha-v5-owner-smoke-20261013
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-foundation:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout test branch only
+        uses: actions/checkout@v4
+      - name: Install Go 1.24
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: false
+      - name: Run isolated Windows foundation gate
+        shell: pwsh
+        run: ./scripts/Test-Alpha-Foundation.ps1 -BrowserSmoke
