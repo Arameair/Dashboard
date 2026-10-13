@@ -22,4 +22,4 @@ jobs:
           cache: false
       - name: Run isolated Windows foundation gate
         shell: pwsh
-        run: ./scripts/Test-Alpha-Foundation.ps1
+        run: ./scripts/Test-Alpha-Foundation.ps1 -BrowserSmoke
