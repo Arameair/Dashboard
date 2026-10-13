@@ -71,8 +71,8 @@ func launch(id string){
  if err=os.MkdirAll(data,0700);err!=nil{fail(r,err.Error());return}
  binary:=filepath.Join(output,id+"-alpha.exe")
  var args []string
- if id=="dashboard"{args=[]string{"build","-mod=vendor","-C",filepath.Join(s.dir,"dashboard"),"-o",binary,"."}}else{args=[]string{"build","-mod=readonly","-o",binary,"."}}
- cmd:=exec.Command("go",args...);cmd.Dir=s.dir;cmd.Env=append(os.Environ(),"GOTOOLCHAIN=local","GOPROXY=off")
+ if id=="dashboard"{args=[]string{"build","-mod=vendor","-o",binary,"."}}else{args=[]string{"build","-mod=readonly","-o",binary,"."}}
+ cmd:=exec.Command("go",args...);if id=="dashboard"{cmd.Dir=filepath.Join(s.dir,"dashboard")}else{cmd.Dir=s.dir};cmd.Env=append(os.Environ(),"GOTOOLCHAIN=local","GOPROXY=off")
  out,e:=cmd.CombinedOutput()
  if e!=nil{fail(r,fmt.Sprintf("Build failed (no dependency downloads): %v\n%s",e,string(out)));return}
  // Explicit collision protection: never adopt a pre-existing instance.
