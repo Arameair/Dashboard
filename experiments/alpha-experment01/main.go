@@ -25,7 +25,7 @@ type Runner struct{mu sync.Mutex; cmd *exec.Cmd; status string; logs string; err
 var runners=map[string]*Runner{"dashboard":{status:"stopped"},"teams":{status:"stopped"}}
 type Spec struct{id,name,repo,dir,branch,url string;port int}
 func specs()[]Spec{return []Spec{
- {"dashboard","Dashboard","https://github.com/Arameair/Dashboard",filepath.Join(*root,"Dashboard-Alpha-Owner-Test"),"experiment/alpha-v5-owner-smoke-20261013","http://127.0.0.1:18877/",18877},
+ {"dashboard","Dashboard","https://github.com/Arameair/Dashboard",filepath.Join(*root,"Dashboard-Alpha"),"alpha","http://127.0.0.1:18877/",18877},
  {"teams","Teams","https://github.com/Arameair/Teams",filepath.Join(*root,"Teams-Alpha"),"alpha","http://127.0.0.1:18998/",18998},
 }}
 func spec(id string)(Spec,bool){for _,s:=range specs(){if s.id==id{return s,true}};return Spec{},false}
