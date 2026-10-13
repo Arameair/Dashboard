@@ -82,6 +82,22 @@ try {
             }
         }
         if (-not $running) { throw 'Browser never reported RUNNING within 30s' }
+        # A running browser is insufficient for our dashboard: prove its live preview and log.
+        $imageReady = $false
+        for ($i = 0; $i -lt 50; $i++) {
+            Start-Sleep -Milliseconds 400
+            try {
+                $image = Invoke-WebRequest -Uri ($base + 'api/shot?id=alpha-test-ci') -UseBasicParsing -TimeoutSec 4
+                if ($image.StatusCode -eq 200 -and $image.Headers['Content-Type'] -match 'image/jpeg' -and $image.RawContentLength -gt 100) {
+                    $imageReady = $true
+                    break
+                }
+            } catch {}
+        }
+        if (-not $imageReady) { throw 'Browser launched but Dashboard never returned a JPEG preview' }
+        $log = (Invoke-WebRequest -Uri ($base + 'api/log?id=alpha-test-ci') -UseBasicParsing -TimeoutSec 4).Content
+        if ($log -notmatch 'browser ready') { throw 'Browser launch log unavailable' }
+        Write-Output "PASS: live browser preview JPEG and project-specific launch log."
         $stop = Invoke-RestMethod -Method Post -Uri $stopUrl -ContentType 'application/json' -Body '{}' -TimeoutSec 10
         if ($stop.ok -ne $true) { throw 'Browser Stop was rejected' }
         $stopped = $false
