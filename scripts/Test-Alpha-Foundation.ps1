@@ -1,4 +1,5 @@
-# CI/owner-independent Windows smoke check. Does not launch Chrome or interact with ChatGPT.
+# CI/owner-independent Windows smoke check. Optional browser test uses only an offline blank page. Never interacts with ChatGPT.
+param([switch]$BrowserSmoke)
 $ErrorActionPreference = 'Stop'
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('dashboard-alpha-ci-' + [guid]::NewGuid().ToString('N'))
@@ -15,7 +16,7 @@ $previousCache = $env:GOCACHE
 New-Item -ItemType Directory -Force -Path $projectsDir, $dataDir | Out-Null
 try {
     $fixture = @'
-{"projects":[{"id":"alpha-test-ci","name":"Alpha CI offline test","url":"https://example.com/","nudge":"","nudge_minutes":10,"auto_nudge":false,"auto_start":false,"save_replies":false,"console":false}]}
+{"projects":[{"id":"alpha-test-ci","name":"Alpha CI offline test","url":"about:blank","nudge":"","nudge_minutes":10,"auto_nudge":false,"auto_start":false,"save_replies":false,"console":false}]}
 '@
     [System.IO.File]::WriteAllText((Join-Path $projectsDir 'ci.json'), $fixture, [System.Text.UTF8Encoding]::new($false))
     $env:GOTOOLCHAIN = 'local'
@@ -61,8 +62,42 @@ try {
     if ($html -notmatch 'Teams Dashboard') { throw 'UI HTML missing' }
     if (-not (Test-Path -LiteralPath (Join-Path $dataDir 'config.json'))) { throw 'Isolated config not created' }
     Write-Output "PASS: Go tests, vet, vendor build, HTTP ping, UI page, isolated sample, no auto-start/nudge."
+
+    if ($BrowserSmoke) {
+        if ([string]::IsNullOrWhiteSpace($state.settings.browser_found)) {
+            throw ("Browser smoke requested, but Chrome/Edge was not found: " + $state.settings.browser_error)
+        }
+        $startUrl = $base + 'api/act?id=alpha-test-ci&a=start'
+        $stopUrl = $base + 'api/act?id=alpha-test-ci&a=stop'
+        $started = Invoke-RestMethod -Method Post -Uri $startUrl -ContentType 'application/json' -Body '{}' -TimeoutSec 10
+        if ($started.ok -ne $true) { throw 'Browser Start was rejected' }
+        $running = $false
+        for ($i = 0; $i -lt 120; $i++) {
+            Start-Sleep -Milliseconds 250
+            $current = Invoke-RestMethod -Uri ($base + 'api/state') -TimeoutSec 3
+            $p = @($current.projects)[0]
+            if ($p.state -eq 'running') { $running = $true; break }
+            if ($p.state -eq 'stopped' -and -not [string]::IsNullOrWhiteSpace($p.err)) {
+                throw ('Browser launch failed: ' + $p.err)
+            }
+        }
+        if (-not $running) { throw 'Browser never reported RUNNING within 30s' }
+        $stop = Invoke-RestMethod -Method Post -Uri $stopUrl -ContentType 'application/json' -Body '{}' -TimeoutSec 10
+        if ($stop.ok -ne $true) { throw 'Browser Stop was rejected' }
+        $stopped = $false
+        for ($i = 0; $i -lt 80; $i++) {
+            Start-Sleep -Milliseconds 250
+            $current = Invoke-RestMethod -Uri ($base + 'api/state') -TimeoutSec 3
+            if (@($current.projects)[0].state -eq 'stopped') { $stopped = $true; break }
+        }
+        if (-not $stopped) { throw 'Browser did not stop within 20s' }
+        Write-Output "PASS: one real Chrome/Edge isolated browser launched and stopped on Windows."
+    }
 } finally {
     if ($server) {
+        if ($BrowserSmoke) {
+            try { Invoke-RestMethod -Method Post -Uri ("http://127.0.0.1:$port/api/act?id=alpha-test-ci&a=stop") -ContentType 'application/json' -Body '{}' -TimeoutSec 4 | Out-Null } catch {}
+        }
         $server.Refresh()
         if (-not $server.HasExited) {
             # Only terminate the exact PID returned by Start-Process for this disposable binary.
